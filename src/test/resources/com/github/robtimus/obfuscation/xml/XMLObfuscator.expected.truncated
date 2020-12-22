@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<root>
+  <text>
+    ***
+  </text>
+  <cdata>
+    <![CDATA[
+      ***
+    ]]>
+  </cdata>
+  <empty />
+  <element>
+    <text>
+      ***
+    </text>
+    <cdata>
+      <![CDATA[
+        ***
+      ]]>
+    </cdata>
+    <empty />
+    <nested>
+      <elem1>***</elem1>
+      <elem2>***</elem2>
+    </nested>
+  </element>
+  <notMatchedText>
+    text&quot;
+  </notMatchedText>
+  <notMatchedCdata>
+    <![CDATA[
+      Longer data with embedded <xml>
+    ]]>
+  </notMatchedCdata>
+  <notMatchedEmpty />
+  <notMatchedElement>
+    <notMatchedText>
+      text&quot;
+    </notMatchedText>
+    <notMatchedCdata>
+      <![CDATA[
+        Longer data with embedded <xml>
+      ]]>
+    </notMatchedCdata>
+    <notMatchedEmpty />
+  </notMatchedElement>
+  <nested>
+    <text>
+      ***
+    </text>
+    <cdata>
+      <![CDATA[
+        ***
+      ]]>
+    </cdata>
+    <empty />
+    <element>
+      <text>
+        ***
+      </text>
+      <cdata>
+        <![CDATA[
+          ***
+        ]]>
+      </cdata>
+      <empty />
+      <nested>
+        <elem1>***
+<obfuscation aborted due to malformed XML>

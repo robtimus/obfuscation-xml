@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<root>
+  <text>
+    text&quot;
+  </text>
+  <cdata>
+    <![CDATA[
+      Longer data with embedded <xml>
+    ]]>
+  </cdata>
+  <empty />
+  <element>
+    <text>
+      text&quot;
+    </text>
+    <cdata>
+      <![CDATA[
+        Longer data with embedded <xml>
+      ]]>
+    </cdata>
+    <empty />
+    <nested>
+      <elem1>1</elem1>
+      <elem2>2</elem2>
+    </nested>
+  </element>
+  <notMatchedText>
+    text&quot;
+  </notMatchedText>
+  <notMatchedCdata>
+    <![CDATA[
+      Longer data with embedded <xml>
+    ]]>
+  </notMatchedCdata>
+  <notMatchedEmpty />
+  <notMatchedElement>
+    <notMatchedText>
+      text&quot;
+    </notMatchedText>
+    <notMatchedCdata>
+      <![CDATA[
+        Longer data with embedded <xml>
+      ]]>
+    </notMatchedCdata>
+    <notMatchedEmpty />
+  </notMatchedElement>
+  <nested>
+    <text>
+      text&quot;
+    </text>
+    <cdata>
+      <![CDATA[
+        Longer data with embedded <xml>
+      ]]>
+    </cdata>
+    <empty />
+    <element>
+      <text>
+        text&quot;
+      </text>
+      <cdata>
+        <![CDATA[
+          Longer data with embedded <xml>
+        ]]>
+      </cdata>
+      <empty />
+      <nested>
+        <elem1>1</elem1>
+        <elem2>2</elem2>
+      </nested>
+    </element>
+    <notMatchedText>
+      text&quot;
+    </notMatchedText>
+    <notMatchedCdata>
+      <![CDATA[
+        Longer data with embedded <xml>
+      ]]>
+    </notMatchedCdata>
+    <notMatchedEmpty />
+    <notMatchedElement>
+        <notMatchedText>
+        text&quot;
+      </notMatchedText>
+      <notMatchedCdata>
+        <![CDATA[
+          Longer data with embedded <xml>
+        ]]>
+      </notMatchedCdata>
+      <notMatchedEmpty />
+    </notMatchedElement>
+  </nested>
+  <notObfuscated>
+    <text>
+      text&quot;
+    </text>
+    <cdata>
+      <![CDATA[
+        Longer data with embedded <xml>
+      ]]>
+    </cdata>
+    <empty />
+    <element>
+      <text>
+        text&quot;
+      </text>
+      <cdata>
+        <![CDATA[
+          Longer data with embedded <xml>
+        ]]>
+      </cdata>
+      <empty />
+      <nested>
+        <elem1>1</elem1>
+        <elem2>2</elem2>
+      </nested>
+    </element>
+    <notMatchedText>
+      text&quot;
+    </notMatchedText>
+    <notMatchedCdata>
+      <![CDATA[
+        Longer data with embedded <xml>
+      ]]>
+    </notMatchedCdata>
+    <notMatchedEmpty />
+    <notMatchedElement>
+      <notMatchedText>
+        text&quot;
+      </notMatchedText>
+      <notMatchedCdata>
+        <![CDATA[
+          Longer data with embedded <xml>
+        ]]>
+      </notMatchedCdata>
+      <notMatchedEmpty />
+    </notMatchedElement>
+  </notObfuscated>
+</root>
