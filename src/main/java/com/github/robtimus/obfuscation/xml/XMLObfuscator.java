@@ -24,10 +24,13 @@ import static com.github.robtimus.obfuscation.support.ObfuscatorUtils.reader;
 import java.io.IOException;
 import java.io.Reader;
 import java.io.Writer;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 import javax.xml.XMLConstants;
+import javax.xml.namespace.QName;
 import javax.xml.stream.XMLInputFactory;
 import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamReader;
@@ -57,11 +60,13 @@ public final class XMLObfuscator extends Obfuscator {
     private static final XMLInputFactory INPUT_FACTORY = createInputFactory();
 
     private final Map<String, ElementConfig> elements;
+    private final Map<QName, ElementConfig> qualifiedElements;
 
     private final String malformedXMLWarning;
 
     private XMLObfuscator(ObfuscatorBuilder builder) {
         elements = builder.elements();
+        qualifiedElements = builder.qualifiedElements();
 
         malformedXMLWarning = builder.malformedXMLWarning;
     }
@@ -111,7 +116,7 @@ public final class XMLObfuscator extends Obfuscator {
     private void obfuscateText(Reader input, CharSequence s, int start, int end, Appendable destination) throws IOException {
         try {
             XMLStreamReader xmlStreamReader = INPUT_FACTORY.createXMLStreamReader(input);
-            ObfuscatingXMLParser parser = new ObfuscatingXMLParser(xmlStreamReader, s, start, end, destination, elements);
+            ObfuscatingXMLParser parser = new ObfuscatingXMLParser(xmlStreamReader, s, start, end, destination, elements, qualifiedElements);
             while (parser.hasNext()) {
                 parser.processNext();
             }
@@ -203,6 +208,19 @@ public final class XMLObfuscator extends Obfuscator {
          * @throws IllegalArgumentException If an element with the same local name and the same case sensitivity was already added.
          */
         public abstract ElementConfigurer withElement(String element, Obfuscator obfuscator, CaseSensitivity caseSensitivity);
+
+        /**
+         * Adds an element to obfuscate.
+         * Any element added using this method will take precedence over elements added using {@link #withElement(String, Obfuscator)} or
+         * {@link #withElement(String, Obfuscator, CaseSensitivity)}.
+         *
+         * @param element The qualified name of the element.
+         * @param obfuscator The obfuscator to use for obfuscating the element.
+         * @return An object that can be used to configure the element, or continue building {@link XMLObfuscator XMLObfuscators}.
+         * @throws NullPointerException If the given element name or obfuscator is {@code null}.
+         * @throws IllegalArgumentException If an element with the same qualified name was already added.
+         */
+        public abstract ElementConfigurer withElement(QName element, Obfuscator obfuscator);
 
         /**
          * Sets the default case sensitivity for new elements to {@link CaseSensitivity#CASE_SENSITIVE}. This is the default setting.
@@ -345,6 +363,7 @@ public final class XMLObfuscator extends Obfuscator {
     private static final class ObfuscatorBuilder extends ElementConfigurer {
 
         private final MapBuilder<ElementConfig> elements;
+        private final Map<QName, ElementConfig> qualifiedElements;
 
         private String malformedXMLWarning;
 
@@ -353,12 +372,14 @@ public final class XMLObfuscator extends Obfuscator {
 
         // per element settings
         private String element;
+        private QName qualifiedElement;
         private Obfuscator obfuscator;
         private CaseSensitivity caseSensitivity;
         private boolean obfuscateNestedElements;
 
         private ObfuscatorBuilder() {
             elements = new MapBuilder<>();
+            qualifiedElements = new HashMap<>();
             malformedXMLWarning = Messages.XMLObfuscator.malformedXML.text.get();
 
             obfuscateNestedElementsByDefault = true;
@@ -387,6 +408,25 @@ public final class XMLObfuscator extends Obfuscator {
             this.element = element;
             this.obfuscator = obfuscator;
             this.caseSensitivity = caseSensitivity;
+            this.obfuscateNestedElements = obfuscateNestedElementsByDefault;
+
+            return this;
+        }
+
+        @Override
+        public ElementConfigurer withElement(QName element, Obfuscator obfuscator) {
+            addLastElement();
+
+            Objects.requireNonNull(element);
+            Objects.requireNonNull(obfuscator);
+
+            if (qualifiedElements.containsKey(element)) {
+                throw new IllegalArgumentException(Messages.XMLObfuscator.duplicateElement.get(element));
+            }
+
+            this.qualifiedElement = element;
+            this.obfuscator = obfuscator;
+            this.caseSensitivity = null;
             this.obfuscateNestedElements = obfuscateNestedElementsByDefault;
 
             return this;
@@ -438,6 +478,10 @@ public final class XMLObfuscator extends Obfuscator {
             return elements.build();
         }
 
+        private Map<QName, ElementConfig> qualifiedElements() {
+            return Collections.unmodifiableMap(new HashMap<>(qualifiedElements));
+        }
+
         private void addLastElement() {
             if (element != null) {
                 ElementConfig elementConfig = new ElementConfig(obfuscator, obfuscateNestedElements);
@@ -446,9 +490,13 @@ public final class XMLObfuscator extends Obfuscator {
                 } else {
                     elements.withEntry(element, elementConfig);
                 }
+            } else if (qualifiedElement != null) {
+                ElementConfig elementConfig = new ElementConfig(obfuscator, obfuscateNestedElements);
+                qualifiedElements.put(qualifiedElement, elementConfig);
             }
 
             element = null;
+            qualifiedElement = null;
             obfuscator = null;
             caseSensitivity = null;
             obfuscateNestedElements = obfuscateNestedElementsByDefault;

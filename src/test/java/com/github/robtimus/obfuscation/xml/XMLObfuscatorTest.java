@@ -18,10 +18,13 @@
 package com.github.robtimus.obfuscation.xml;
 
 import static com.github.robtimus.obfuscation.Obfuscator.fixedLength;
+import static com.github.robtimus.obfuscation.Obfuscator.fixedValue;
 import static com.github.robtimus.obfuscation.Obfuscator.none;
 import static com.github.robtimus.obfuscation.support.CaseSensitivity.CASE_SENSITIVE;
 import static com.github.robtimus.obfuscation.xml.XMLObfuscator.builder;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.params.provider.Arguments.arguments;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
@@ -36,6 +39,8 @@ import java.io.UncheckedIOException;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.util.function.Supplier;
+import javax.xml.XMLConstants;
+import javax.xml.namespace.QName;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -83,6 +88,34 @@ class XMLObfuscatorTest {
     }
 
     @Nested
+    @DisplayName("Builder")
+    class BuilderTest {
+
+        @Test
+        @DisplayName("withElement(QName, Obfuscator) with the same local name but different namespaces")
+        void testQualifiedElementNameWithSameLocalName() {
+            String localName = "test";
+            Obfuscator obfuscator = fixedLength(3);
+
+            Builder builder = builder();
+            assertDoesNotThrow(() -> builder.withElement(new QName(localName), obfuscator));
+            assertDoesNotThrow(() -> builder.withElement(new QName(XMLConstants.XML_NS_URI, localName), obfuscator));
+        }
+
+        @Test
+        @DisplayName("withElement(QName, Obfuscator) with duplicate name")
+        void testDuplicateQualifiedElementName() {
+            QName element = new QName("test");
+            Obfuscator obfuscator = fixedLength(3);
+
+            Builder builder = builder();
+            assertDoesNotThrow(() -> builder.withElement(element, obfuscator));
+            IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> builder.withElement(element, obfuscator));
+            assertEquals(Messages.XMLObfuscator.duplicateElement.get(element), exception.getMessage());
+        }
+    }
+
+    @Nested
     @DisplayName("valid XML")
     @TestInstance(Lifecycle.PER_CLASS)
     class ValidXML {
@@ -106,6 +139,17 @@ class XMLObfuscatorTest {
             ObfuscatingCaseInsensitively() {
                 super("XMLObfuscator.input.valid.xml", "XMLObfuscator.expected.valid.all",
                         () -> createObfuscatorCaseInsensitive(builder().caseInsensitiveByDefault()));
+            }
+        }
+
+        @Nested
+        @DisplayName("using qualified names")
+        @TestInstance(Lifecycle.PER_CLASS)
+        class ObfuscatingQualified extends ObfuscatorTest {
+
+            ObfuscatingQualified() {
+                super("XMLObfuscator.input.valid.xml", "XMLObfuscator.expected.valid.all",
+                        () -> createObfuscatorQualifiedNames(builder()));
             }
         }
 
@@ -279,7 +323,7 @@ class XMLObfuscatorTest {
         return builder.transform(XMLObfuscatorTest::createObfuscator);
     }
 
-    static XMLObfuscator createObfuscator(Builder builder) {
+    private static XMLObfuscator createObfuscator(Builder builder) {
         Obfuscator obfuscator = fixedLength(3);
         return builder
                 .withElement("text", obfuscator)
@@ -298,6 +342,24 @@ class XMLObfuscatorTest {
                 .withElement("EMPTY", obfuscator)
                 .withElement("ELEMENT", obfuscator)
                 .withElement("NOTOBFUSCATED", none())
+                .build();
+    }
+
+    private static XMLObfuscator createObfuscatorQualifiedNames(Builder builder) {
+        Obfuscator obfuscator = fixedLength(3);
+        Obfuscator unusedObfuscator = fixedValue("not used");
+        return builder
+                .withElement(new QName("text"), obfuscator)
+                .withElement(new QName("cdata"), obfuscator)
+                .withElement(new QName("empty"), obfuscator)
+                .withElement(new QName("element"), obfuscator)
+                .withElement(new QName("notObfuscated"), none())
+
+                .withElement(new QName(XMLConstants.XML_NS_URI, "text"), unusedObfuscator)
+                .withElement(new QName(XMLConstants.XML_NS_URI, "cdata"), unusedObfuscator)
+                .withElement(new QName(XMLConstants.XML_NS_URI, "empty"), unusedObfuscator)
+                .withElement(new QName(XMLConstants.XML_NS_URI, "element"), unusedObfuscator)
+                .withElement(new QName(XMLConstants.XML_NS_URI, "notObfuscated"), unusedObfuscator)
                 .build();
     }
 

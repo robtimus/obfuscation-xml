@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.Map;
+import javax.xml.namespace.QName;
 import javax.xml.stream.XMLStreamConstants;
 import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamReader;
@@ -40,6 +41,7 @@ final class ObfuscatingXMLParser {
     private final Appendable destination;
 
     private final Map<String, ElementConfig> elements;
+    private final Map<QName, ElementConfig> qualifiedElements;
 
     private final int textOffset;
     private final int textEnd;
@@ -48,7 +50,7 @@ final class ObfuscatingXMLParser {
     private final Deque<ObfuscatedElement> currentElements = new ArrayDeque<>();
 
     ObfuscatingXMLParser(XMLStreamReader xmlStreamReader, CharSequence source, int start, int end, Appendable destination,
-            Map<String, ElementConfig> elements) {
+            Map<String, ElementConfig> elements, Map<QName, ElementConfig> qualifiedElements) {
 
         this.xmlStreamReader = xmlStreamReader;
         this.locationInfo = (LocationInfo) xmlStreamReader;
@@ -58,6 +60,7 @@ final class ObfuscatingXMLParser {
         this.textIndex = start;
         this.destination = destination;
         this.elements = elements;
+        this.qualifiedElements = qualifiedElements;
     }
 
     boolean hasNext() throws XMLStreamException {
@@ -100,8 +103,7 @@ final class ObfuscatingXMLParser {
         ObfuscatedElement currentElement = currentElements.peekLast();
         if (currentElement == null || !currentElement.config.obfuscateNestedElements) {
             // either not obfuscating any element, or the element should not obfuscate nested elements - check the element itself
-            String elementName = xmlStreamReader.getLocalName();
-            ElementConfig config = elements.get(elementName);
+            ElementConfig config = obfuscatorForCurrentElement();
             if (config != null) {
                 currentElement = new ObfuscatedElement(config);
                 currentElements.addLast(currentElement);
@@ -115,6 +117,19 @@ final class ObfuscatingXMLParser {
         }
 
         appendUnobfuscated(startIndex, endIndex);
+    }
+
+    private ElementConfig obfuscatorForCurrentElement() {
+        ElementConfig config = null;
+        if (!qualifiedElements.isEmpty()) {
+            QName elementName = xmlStreamReader.getName();
+            config = qualifiedElements.get(elementName);
+        }
+        if (config == null) {
+            String elementName = xmlStreamReader.getLocalName();
+            config = elements.get(elementName);
+        }
+        return config;
     }
 
     private void endElement(int startIndex, int endIndex) throws IOException {
