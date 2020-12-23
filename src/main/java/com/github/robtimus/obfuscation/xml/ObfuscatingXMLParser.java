@@ -17,6 +17,8 @@
 
 package com.github.robtimus.obfuscation.xml;
 
+import static com.github.robtimus.obfuscation.support.ObfuscatorUtils.skipLeadingWhitespace;
+import static com.github.robtimus.obfuscation.support.ObfuscatorUtils.skipTrailingWhitespace;
 import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -167,15 +169,15 @@ final class ObfuscatingXMLParser {
     }
 
     private void obfuscateText(int startIndex, int endIndex, Obfuscator obfuscator) throws IOException {
-        int obfuscationStart = skipLeadingWhitespace(startIndex, endIndex);
-        int obfuscationEnd = skipTrailingWhitespace(obfuscationStart, endIndex);
+        int obfuscationStart = skipLeadingWhitespace(text, startIndex, endIndex);
+        int obfuscationEnd = skipTrailingWhitespace(text, obfuscationStart, endIndex);
 
         if (containsAtIndex(obfuscationStart, CDATA_START) && containsAtIndex(obfuscationEnd - CDATA_END.length(), CDATA_END)) {
             obfuscationStart += CDATA_START.length();
             obfuscationEnd -= CDATA_END.length();
 
-            obfuscationStart = skipLeadingWhitespace(obfuscationStart, obfuscationEnd);
-            obfuscationEnd = skipTrailingWhitespace(obfuscationStart, obfuscationEnd);
+            obfuscationStart = skipLeadingWhitespace(text, obfuscationStart, obfuscationEnd);
+            obfuscationEnd = skipTrailingWhitespace(text, obfuscationStart, obfuscationEnd);
         }
 
         if (startIndex < obfuscationStart) {
@@ -191,22 +193,6 @@ final class ObfuscatingXMLParser {
 
     private void appendUnobfuscated(int startIndex, int endIndex) throws IOException {
         destination.append(text, startIndex, endIndex);
-    }
-
-    private int skipLeadingWhitespace(int startIndex, int endIndex) {
-        int index = startIndex;
-        while (index < endIndex && Character.isWhitespace(text.charAt(index))) {
-            index++;
-        }
-        return index;
-    }
-
-    private int skipTrailingWhitespace(int startIndex, int endIndex) {
-        int index = endIndex;
-        while (index > startIndex && Character.isWhitespace(text.charAt(index - 1))) {
-            index--;
-        }
-        return index;
     }
 
     private boolean containsAtIndex(int index, String content) {
