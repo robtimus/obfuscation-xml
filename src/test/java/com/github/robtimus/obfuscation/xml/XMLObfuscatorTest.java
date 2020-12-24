@@ -360,6 +360,12 @@ class XMLObfuscatorTest {
                 .withElement(new QName(XMLConstants.XML_NS_URI, "empty"), unusedObfuscator)
                 .withElement(new QName(XMLConstants.XML_NS_URI, "element"), unusedObfuscator)
                 .withElement(new QName(XMLConstants.XML_NS_URI, "notObfuscated"), unusedObfuscator)
+
+                .withElement("text", unusedObfuscator)
+                .withElement("cdata", unusedObfuscator)
+                .withElement("empty", unusedObfuscator)
+                .withElement("element", unusedObfuscator)
+                .withElement("notObfuscated", unusedObfuscator)
                 .build();
     }
 

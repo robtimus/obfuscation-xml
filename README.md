@@ -8,7 +8,7 @@ To create an XML obfuscator, simply create a builder, add elements to it, and le
             .withElement("password", Obfuscator.fixedLength(3))
             .build();
 
-An XML obfuscator will only obfuscate text, and ignore leading and trailing whitespace, including inside CDATA sections. Support for attributes may be added in the future, but it will never obfuscate element tag names, comments, etc.
+An XML obfuscator will only obfuscate text, and ignore leading and trailing whitespace, including inside CDATA sections. It will never obfuscate element tag names, comments, etc.
 
 ## Obfuscation of nested elements
 
