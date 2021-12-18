@@ -85,19 +85,19 @@ final class ObfuscatingXMLParser {
 
     private void processEvent(int event, int startIndex, int endIndex) throws IOException {
         switch (event) {
-        case XMLStreamConstants.START_ELEMENT:
-            startElement(startIndex, endIndex);
-            break;
-        case XMLStreamConstants.END_ELEMENT:
-            endElement(startIndex, endIndex);
-            break;
-        case XMLStreamConstants.CHARACTERS:
-        case XMLStreamConstants.CDATA:
-            text(startIndex, endIndex);
-            break;
-        default:
-            appendUnobfuscated(startIndex, endIndex);
-            break;
+            case XMLStreamConstants.START_ELEMENT:
+                startElement(startIndex, endIndex);
+                break;
+            case XMLStreamConstants.END_ELEMENT:
+                endElement(startIndex, endIndex);
+                break;
+            case XMLStreamConstants.CHARACTERS:
+            case XMLStreamConstants.CDATA:
+                text(startIndex, endIndex);
+                break;
+            default:
+                appendUnobfuscated(startIndex, endIndex);
+                break;
         }
     }
 
