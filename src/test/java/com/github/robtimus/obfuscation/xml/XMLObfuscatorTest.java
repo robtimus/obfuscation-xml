@@ -72,6 +72,11 @@ class XMLObfuscatorTest {
                 arguments(obfuscator, createObfuscator(builder().withElement("test", none(), CASE_SENSITIVE)), true),
                 arguments(obfuscator, createObfuscator(builder().withElement("test", fixedLength(3))), false),
                 arguments(obfuscator, createObfuscator(builder().withElement("test", none()).excludeNestedElements()), false),
+                arguments(obfuscator, createObfuscator(builder().withElement("test", none()).withElement(new QName("text"), none())), false),
+                arguments(obfuscator, createObfuscator(builder().withElement("test", none()).limitTo(Long.MAX_VALUE)), true),
+                arguments(obfuscator, createObfuscator(builder().withElement("test", none()).limitTo(1024)), false),
+                arguments(obfuscator, createObfuscator(builder().withElement("test", none()).limitTo(Long.MAX_VALUE).withTruncatedIndicator(null)),
+                        false),
                 arguments(obfuscator, builder().build(), false),
                 arguments(obfuscator, createObfuscator(builder().withElement("test", none()).withMalformedXMLWarning(null)), false),
                 arguments(obfuscator, createObfuscator(false), false),
@@ -112,6 +117,18 @@ class XMLObfuscatorTest {
             assertDoesNotThrow(() -> builder.withElement(element, obfuscator));
             IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> builder.withElement(element, obfuscator));
             assertEquals(Messages.XMLObfuscator.duplicateElement.get(element), exception.getMessage());
+        }
+
+        @Nested
+        @DisplayName("limitTo")
+        class LimitTo {
+
+            @Test
+            @DisplayName("negative limit")
+            void testNegativeLimit() {
+                Builder builder = builder();
+                assertThrows(IllegalArgumentException.class, () -> builder.limitTo(-1));
+            }
         }
     }
 
@@ -193,6 +210,34 @@ class XMLObfuscatorTest {
             ObfuscatingTextOverridden() {
                 super("XMLObfuscator.input.valid.xml", "XMLObfuscator.expected.valid.text",
                         () -> createObfuscatorObfuscatingTextOnly(builder().allByDefault()));
+            }
+        }
+
+        @Nested
+        @DisplayName("limited")
+        @TestInstance(Lifecycle.PER_CLASS)
+        class Limited {
+
+            @Nested
+            @DisplayName("with truncated indicator")
+            @TestInstance(Lifecycle.PER_CLASS)
+            class WithTruncatedIndicator extends ObfuscatorTest {
+
+                WithTruncatedIndicator() {
+                    super("XMLObfuscator.input.valid.xml", "XMLObfuscator.expected.valid.limited.with-indicator",
+                            () -> createObfuscator(builder().limitTo(289)));
+                }
+            }
+
+            @Nested
+            @DisplayName("without truncated indicator")
+            @TestInstance(Lifecycle.PER_CLASS)
+            class WithoutTruncatedIndicator extends ObfuscatorTest {
+
+                WithoutTruncatedIndicator() {
+                    super("XMLObfuscator.input.valid.xml", "XMLObfuscator.expected.valid.limited.without-indicator",
+                            () -> createObfuscator(builder().limitTo(289).withTruncatedIndicator(null)));
+                }
             }
         }
     }

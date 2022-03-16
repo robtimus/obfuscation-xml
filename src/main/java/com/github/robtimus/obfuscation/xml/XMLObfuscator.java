@@ -17,8 +17,10 @@
 
 package com.github.robtimus.obfuscation.xml;
 
+import static com.github.robtimus.obfuscation.support.ObfuscatorUtils.appendAtMost;
 import static com.github.robtimus.obfuscation.support.ObfuscatorUtils.checkStartAndEnd;
 import static com.github.robtimus.obfuscation.support.ObfuscatorUtils.copyTo;
+import static com.github.robtimus.obfuscation.support.ObfuscatorUtils.counting;
 import static com.github.robtimus.obfuscation.support.ObfuscatorUtils.discardAll;
 import static com.github.robtimus.obfuscation.support.ObfuscatorUtils.reader;
 import java.io.IOException;
@@ -40,6 +42,8 @@ import com.ctc.wstx.stax.WstxInputFactory;
 import com.github.robtimus.obfuscation.Obfuscator;
 import com.github.robtimus.obfuscation.support.CachingObfuscatingWriter;
 import com.github.robtimus.obfuscation.support.CaseSensitivity;
+import com.github.robtimus.obfuscation.support.CountingReader;
+import com.github.robtimus.obfuscation.support.LimitAppendable;
 import com.github.robtimus.obfuscation.support.MapBuilder;
 
 /**
@@ -64,11 +68,17 @@ public final class XMLObfuscator extends Obfuscator {
 
     private final String malformedXMLWarning;
 
+    private final long limit;
+    private final String truncatedIndicator;
+
     private XMLObfuscator(ObfuscatorBuilder builder) {
         elements = builder.elements();
         qualifiedElements = builder.qualifiedElements();
 
         malformedXMLWarning = builder.malformedXMLWarning;
+
+        limit = builder.limit;
+        truncatedIndicator = builder.truncatedIndicator;
     }
 
     private static XMLInputFactory createInputFactory() {
@@ -101,23 +111,31 @@ public final class XMLObfuscator extends Obfuscator {
     public void obfuscateText(CharSequence s, int start, int end, Appendable destination) throws IOException {
         checkStartAndEnd(s, start, end);
         @SuppressWarnings("resource")
-        Reader input = reader(s, start, end);
-        obfuscateText(input, s, start, end, destination);
+        Reader reader = reader(s, start, end);
+        LimitAppendable appendable = appendAtMost(destination, limit);
+        obfuscateText(reader, s, start, end, appendable);
+        if (appendable.limitExceeded() && truncatedIndicator != null) {
+            destination.append(String.format(truncatedIndicator, end - start));
+        }
     }
 
     @Override
     public void obfuscateText(Reader input, Appendable destination) throws IOException {
         StringBuilder contents = new StringBuilder();
         @SuppressWarnings("resource")
-        Reader reader = copyTo(input, contents);
-        obfuscateText(reader, contents, 0, -1, destination);
+        CountingReader reader = counting(copyTo(input, contents));
+        LimitAppendable appendable = appendAtMost(destination, limit);
+        obfuscateText(reader, contents, 0, -1, appendable);
+        if (appendable.limitExceeded() && truncatedIndicator != null) {
+            destination.append(String.format(truncatedIndicator, reader.count()));
+        }
     }
 
-    private void obfuscateText(Reader input, CharSequence s, int start, int end, Appendable destination) throws IOException {
+    private void obfuscateText(Reader input, CharSequence s, int start, int end, LimitAppendable destination) throws IOException {
         try {
             XMLStreamReader xmlStreamReader = INPUT_FACTORY.createXMLStreamReader(input);
             ObfuscatingXMLParser parser = new ObfuscatingXMLParser(xmlStreamReader, s, start, end, destination, elements, qualifiedElements);
-            while (parser.hasNext()) {
+            while (parser.hasNext() && !destination.limitExceeded()) {
                 parser.processNext();
             }
 
@@ -147,12 +165,16 @@ public final class XMLObfuscator extends Obfuscator {
         }
         XMLObfuscator other = (XMLObfuscator) o;
         return elements.equals(other.elements)
-                && Objects.equals(malformedXMLWarning, other.malformedXMLWarning);
+                && qualifiedElements.equals(other.qualifiedElements)
+                && Objects.equals(malformedXMLWarning, other.malformedXMLWarning)
+                && limit == other.limit
+                && Objects.equals(truncatedIndicator, other.truncatedIndicator);
     }
 
     @Override
     public int hashCode() {
-        return elements.hashCode() ^ Objects.hashCode(malformedXMLWarning);
+        return elements.hashCode() ^ qualifiedElements.hashCode() ^ Objects.hashCode(malformedXMLWarning) ^ Long.hashCode(limit)
+                ^ Objects.hashCode(truncatedIndicator);
     }
 
     @Override
@@ -160,7 +182,10 @@ public final class XMLObfuscator extends Obfuscator {
     public String toString() {
         return getClass().getName()
                 + "[elements=" + elements
+                + ",qualifiedElements=" + qualifiedElements
                 + ",malformedXMLWarning=" + malformedXMLWarning
+                + ",limit=" + limit
+                + ",truncatedIndicator=" + truncatedIndicator
                 + "]";
     }
 
@@ -178,11 +203,7 @@ public final class XMLObfuscator extends Obfuscator {
      *
      * @author Rob Spoor
      */
-    public abstract static class Builder {
-
-        private Builder() {
-            super();
-        }
+    public interface Builder {
 
         /**
          * Adds an element to obfuscate.
@@ -195,7 +216,7 @@ public final class XMLObfuscator extends Obfuscator {
          * @throws NullPointerException If the given element name or obfuscator is {@code null}.
          * @throws IllegalArgumentException If an element with the same local name and the same case sensitivity was already added.
          */
-        public abstract ElementConfigurer withElement(String element, Obfuscator obfuscator);
+        ElementConfigurer withElement(String element, Obfuscator obfuscator);
 
         /**
          * Adds an element to obfuscate.
@@ -207,7 +228,7 @@ public final class XMLObfuscator extends Obfuscator {
          * @throws NullPointerException If the given element name, obfuscator or case sensitivity is {@code null}.
          * @throws IllegalArgumentException If an element with the same local name and the same case sensitivity was already added.
          */
-        public abstract ElementConfigurer withElement(String element, Obfuscator obfuscator, CaseSensitivity caseSensitivity);
+        ElementConfigurer withElement(String element, Obfuscator obfuscator, CaseSensitivity caseSensitivity);
 
         /**
          * Adds an element to obfuscate.
@@ -220,7 +241,7 @@ public final class XMLObfuscator extends Obfuscator {
          * @throws NullPointerException If the given element name or obfuscator is {@code null}.
          * @throws IllegalArgumentException If an element with the same qualified name was already added.
          */
-        public abstract ElementConfigurer withElement(QName element, Obfuscator obfuscator);
+        ElementConfigurer withElement(QName element, Obfuscator obfuscator);
 
         /**
          * Sets the default case sensitivity for new elements to {@link CaseSensitivity#CASE_SENSITIVE}. This is the default setting.
@@ -229,7 +250,7 @@ public final class XMLObfuscator extends Obfuscator {
          *
          * @return This object.
          */
-        public abstract Builder caseSensitiveByDefault();
+        Builder caseSensitiveByDefault();
 
         /**
          * Sets the default case sensitivity for new elements to {@link CaseSensitivity#CASE_INSENSITIVE}.
@@ -238,7 +259,7 @@ public final class XMLObfuscator extends Obfuscator {
          *
          * @return This object.
          */
-        public abstract Builder caseInsensitiveByDefault();
+        Builder caseInsensitiveByDefault();
 
         /**
          * Indicates that by default nested elements will not be obfuscated.
@@ -248,7 +269,7 @@ public final class XMLObfuscator extends Obfuscator {
          *
          * @return This object.
          */
-        public Builder textOnlyByDefault() {
+        default Builder textOnlyByDefault() {
             return excludeNestedElementsByDefault();
         }
 
@@ -260,7 +281,7 @@ public final class XMLObfuscator extends Obfuscator {
          *
          * @return This object.
          */
-        public abstract Builder excludeNestedElementsByDefault();
+        Builder excludeNestedElementsByDefault();
 
         /**
          * Indicates that by default nested elements will be obfuscated (default).
@@ -270,7 +291,7 @@ public final class XMLObfuscator extends Obfuscator {
          *
          * @return This object.
          */
-        public Builder allByDefault() {
+        default Builder allByDefault() {
             return includeNestedElementsByDefault();
         }
 
@@ -282,7 +303,7 @@ public final class XMLObfuscator extends Obfuscator {
          *
          * @return This object.
          */
-        public abstract Builder includeNestedElementsByDefault();
+        Builder includeNestedElementsByDefault();
 
         /**
          * Sets the warning to include if an {@link XMLStreamException} is thrown.
@@ -291,7 +312,18 @@ public final class XMLObfuscator extends Obfuscator {
          * @param warning The warning to include.
          * @return This object.
          */
-        public abstract Builder withMalformedXMLWarning(String warning);
+        Builder withMalformedXMLWarning(String warning);
+
+        /**
+         * Sets the limit for the obfuscated result.
+         *
+         * @param limit The limit to use.
+         * @return An object that can be used to configure the handling when the obfuscated result exceeds a pre-defined limit,
+         *         or continue building {@link XMLObfuscator XMLObfuscators}.
+         * @throws IllegalArgumentException If the given limit is negative.
+         * @since 1.1
+         */
+        LimitConfigurer limitTo(long limit);
 
         /**
          * This method allows the application of a function to this builder.
@@ -302,7 +334,7 @@ public final class XMLObfuscator extends Obfuscator {
          * @param f The function to apply.
          * @return The result of applying the function to this builder.
          */
-        public <R> R transform(Function<? super Builder, ? extends R> f) {
+        default <R> R transform(Function<? super Builder, ? extends R> f) {
             return f.apply(this);
         }
 
@@ -311,7 +343,7 @@ public final class XMLObfuscator extends Obfuscator {
          *
          * @return The created {@code XMLObfuscator}.
          */
-        public abstract XMLObfuscator build();
+        XMLObfuscator build();
     }
 
     /**
@@ -319,11 +351,7 @@ public final class XMLObfuscator extends Obfuscator {
      *
      * @author Rob Spoor
      */
-    public abstract static class ElementConfigurer extends Builder {
-
-        private ElementConfigurer() {
-            super();
-        }
+    public interface ElementConfigurer extends Builder {
 
         /**
          * Indicates that elements nested in elements with the current name will not be obfuscated.
@@ -331,7 +359,7 @@ public final class XMLObfuscator extends Obfuscator {
          *
          * @return An object that can be used to configure the element, or continue building {@link XMLObfuscator XMLObfuscators}.
          */
-        public ElementConfigurer textOnly() {
+        default ElementConfigurer textOnly() {
             return excludeNestedElements();
         }
 
@@ -340,7 +368,7 @@ public final class XMLObfuscator extends Obfuscator {
          *
          * @return An object that can be used to configure the element, or continue building {@link XMLObfuscator XMLObfuscators}.
          */
-        public abstract ElementConfigurer excludeNestedElements();
+        ElementConfigurer excludeNestedElements();
 
         /**
          * Indicates that elements nested in elements with the current name will be obfuscated.
@@ -348,7 +376,7 @@ public final class XMLObfuscator extends Obfuscator {
          *
          * @return An object that can be used to configure the element, or continue building {@link XMLObfuscator XMLObfuscators}.
          */
-        public ElementConfigurer all() {
+        default ElementConfigurer all() {
             return includeNestedElements();
         }
 
@@ -357,15 +385,38 @@ public final class XMLObfuscator extends Obfuscator {
          *
          * @return An object that can be used to configure the element, or continue building {@link XMLObfuscator XMLObfuscators}.
          */
-        public abstract ElementConfigurer includeNestedElements();
+        ElementConfigurer includeNestedElements();
     }
 
-    private static final class ObfuscatorBuilder extends ElementConfigurer {
+    /**
+     * An object that can be used to configure handling when the obfuscated result exceeds a pre-defined limit.
+     *
+     * @author Rob Spoor
+     * @since 1.1
+     */
+    public interface LimitConfigurer extends Builder {
+
+        /**
+         * Sets the indicator to use when the obfuscated result is truncated due to the limit being exceeded.
+         * There can be one place holder for the total number of characters. Defaults to {@code ... (total: %d)}.
+         * Use {@code null} to omit the indicator.
+         *
+         * @param pattern The pattern to use as indicator.
+         * @return An object that can be used to configure the handling when the obfuscated result exceeds a pre-defined limit,
+         *         or continue building {@link XMLObfuscator XMLObfuscators}.
+         */
+        LimitConfigurer withTruncatedIndicator(String pattern);
+    }
+
+    private static final class ObfuscatorBuilder implements ElementConfigurer, LimitConfigurer {
 
         private final MapBuilder<ElementConfig> elements;
         private final Map<QName, ElementConfig> qualifiedElements;
 
         private String malformedXMLWarning;
+
+        private long limit;
+        private String truncatedIndicator;
 
         // default settings
         private boolean obfuscateNestedElementsByDefault;
@@ -380,7 +431,11 @@ public final class XMLObfuscator extends Obfuscator {
         private ObfuscatorBuilder() {
             elements = new MapBuilder<>();
             qualifiedElements = new HashMap<>();
+
             malformedXMLWarning = Messages.XMLObfuscator.malformedXML.text.get();
+
+            limit = Long.MAX_VALUE;
+            truncatedIndicator = "... (total: %d)"; //$NON-NLS-1$
 
             obfuscateNestedElementsByDefault = true;
         }
@@ -471,6 +526,21 @@ public final class XMLObfuscator extends Obfuscator {
         @Override
         public Builder withMalformedXMLWarning(String warning) {
             malformedXMLWarning = warning;
+            return this;
+        }
+
+        @Override
+        public LimitConfigurer limitTo(long limit) {
+            if (limit < 0) {
+                throw new IllegalArgumentException(limit + " < 0"); //$NON-NLS-1$
+            }
+            this.limit = limit;
+            return this;
+        }
+
+        @Override
+        public LimitConfigurer withTruncatedIndicator(String pattern) {
+            this.truncatedIndicator = pattern;
             return this;
         }
 

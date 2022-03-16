@@ -62,10 +62,8 @@
   </issueManagement>
 
   <properties>
-    <version.obfuscation-core>1.3</version.obfuscation-core>
+    <version.obfuscation-core>1.4</version.obfuscation-core>
     <version.woodstox-core>6.2.3</version.woodstox-core>
-    <!-- Use version 1.7.30 to match the latest release; this will allow Snyk to warn for vulnerabilities -->
-    <version.slf4j>1.7.30</version.slf4j>
   </properties>
 
   <dependencies>
