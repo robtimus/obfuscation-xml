@@ -63,7 +63,7 @@
 
   <properties>
     <version.obfuscation-core>1.4</version.obfuscation-core>
-    <version.woodstox-core>6.2.3</version.woodstox-core>
+    <version.woodstox-core>6.2.8</version.woodstox-core>
   </properties>
 
   <dependencies>
