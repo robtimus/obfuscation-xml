@@ -22,7 +22,7 @@
   <parent>
     <groupId>com.github.robtimus</groupId>
     <artifactId>robtimus-parent</artifactId>
-    <version>1.4.3</version>
+    <version>1.5</version>
     <relativePath />
   </parent>
 
@@ -63,8 +63,6 @@
 
   <properties>
     <version.obfuscation-core>1.4</version.obfuscation-core>
-    <!-- Use version 1.7.32 to match the latest release; this will allow Snyk to warn for vulnerabilities -->
-    <version.slf4j>1.7.32</version.slf4j>
     <version.woodstox-core>6.4.0</version.woodstox-core>
   </properties>
 
@@ -107,7 +105,6 @@
     <dependency>
       <groupId>org.mockito</groupId>
       <artifactId>mockito-inline</artifactId>
-      <version>${version.mockito}</version>
       <scope>test</scope>
     </dependency>
   </dependencies>

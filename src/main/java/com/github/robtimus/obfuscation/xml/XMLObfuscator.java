@@ -95,7 +95,7 @@ public final class XMLObfuscator extends Obfuscator {
         try {
             inputFactory.setProperty(name, value);
         } catch (@SuppressWarnings("unused") IllegalArgumentException e) {
-            LOGGER.warn(Messages.XMLObfuscator.unsupportedProperty.get(name));
+            LOGGER.warn(Messages.XMLObfuscator.unsupportedProperty(name));
         }
     }
 
@@ -143,7 +143,7 @@ public final class XMLObfuscator extends Obfuscator {
             discardAll(input);
             parser.appendRemainder();
         } catch (XMLStreamException e) {
-            LOGGER.warn(Messages.XMLObfuscator.malformedXML.warning.get(), e);
+            LOGGER.warn(Messages.XMLObfuscator.malformedXML.warning(), e);
             if (malformedXMLWarning != null) {
                 destination.append(malformedXMLWarning);
             }
@@ -432,7 +432,7 @@ public final class XMLObfuscator extends Obfuscator {
             elements = new MapBuilder<>();
             qualifiedElements = new HashMap<>();
 
-            malformedXMLWarning = Messages.XMLObfuscator.malformedXML.text.get();
+            malformedXMLWarning = Messages.XMLObfuscator.malformedXML.text();
 
             limit = Long.MAX_VALUE;
             truncatedIndicator = "... (total: %d)"; //$NON-NLS-1$
@@ -476,7 +476,7 @@ public final class XMLObfuscator extends Obfuscator {
             Objects.requireNonNull(obfuscator);
 
             if (qualifiedElements.containsKey(element)) {
-                throw new IllegalArgumentException(Messages.XMLObfuscator.duplicateElement.get(element));
+                throw new IllegalArgumentException(Messages.XMLObfuscator.duplicateElement(element));
             }
 
             this.qualifiedElement = element;

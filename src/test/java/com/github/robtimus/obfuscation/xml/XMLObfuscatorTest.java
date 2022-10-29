@@ -116,7 +116,7 @@ class XMLObfuscatorTest {
             Builder builder = builder();
             assertDoesNotThrow(() -> builder.withElement(element, obfuscator));
             IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> builder.withElement(element, obfuscator));
-            assertEquals(Messages.XMLObfuscator.duplicateElement.get(element), exception.getMessage());
+            assertEquals(Messages.XMLObfuscator.duplicateElement(element), exception.getMessage());
         }
 
         @Nested
