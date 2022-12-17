@@ -9,6 +9,7 @@
     ]]>
   </cdata>
   <empty />
+  <!-- comment -->
   <element>
     <text>
       ***
@@ -21,6 +22,7 @@
     <empty />
     <nested>
       <elem1>***</elem1>
+      <!-- comment -->
       <elem2>***</elem2>
     </nested>
   </element>
@@ -54,6 +56,7 @@
       ]]>
     </cdata>
     <empty />
+    <!-- comment -->
     <element>
       <text>
         ***
