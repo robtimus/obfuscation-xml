@@ -22,7 +22,7 @@
   <parent>
     <groupId>com.github.robtimus</groupId>
     <artifactId>robtimus-parent</artifactId>
-    <version>1.5</version>
+    <version>1.6</version>
     <relativePath />
   </parent>
 
@@ -62,7 +62,10 @@
   </issueManagement>
 
   <properties>
+    <version.junit-support>2.1</version.junit-support>
     <version.obfuscation-core>1.4</version.obfuscation-core>
+    <version.pioneer>1.9.1</version.pioneer>
+    <version.slf4j>1.7.36</version.slf4j>
     <version.woodstox-core>6.4.0</version.woodstox-core>
   </properties>
 
@@ -82,11 +85,13 @@
     <dependency>
       <groupId>org.slf4j</groupId>
       <artifactId>slf4j-api</artifactId>
+      <version>${version.slf4j}</version>
     </dependency>
 
     <dependency>
       <groupId>org.slf4j</groupId>
-      <artifactId>slf4j-nop</artifactId>
+      <artifactId>slf4j-reload4j</artifactId>
+      <version>${version.slf4j}</version>
       <scope>test</scope>
     </dependency>
 
@@ -107,6 +112,20 @@
       <artifactId>mockito-inline</artifactId>
       <scope>test</scope>
     </dependency>
+
+    <dependency>
+      <groupId>com.github.robtimus</groupId>
+      <artifactId>junit-support</artifactId>
+      <version>${version.junit-support}</version>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.junit-pioneer</groupId>
+      <artifactId>junit-pioneer</artifactId>
+      <version>${version.pioneer}</version>
+      <scope>test</scope>
+     </dependency>
   </dependencies>
 
   <build>

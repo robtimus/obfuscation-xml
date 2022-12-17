@@ -17,8 +17,6 @@
 
 package com.github.robtimus.obfuscation.xml;
 
-import static com.github.robtimus.obfuscation.support.ObfuscatorUtils.skipLeadingWhitespace;
-import static com.github.robtimus.obfuscation.support.ObfuscatorUtils.skipTrailingWhitespace;
 import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -39,7 +37,7 @@ final class ObfuscatingXMLParser {
     private final XMLStreamReader xmlStreamReader;
     private final LocationInfo locationInfo;
 
-    private final CharSequence text;
+    private final Source source;
     private final Appendable destination;
 
     private final Map<String, ElementConfig> elements;
@@ -48,15 +46,16 @@ final class ObfuscatingXMLParser {
     private final int textOffset;
     private final int textEnd;
     private int textIndex;
+    private int latestEndIndex;
 
     private final Deque<ObfuscatedElement> currentElements = new ArrayDeque<>();
 
-    ObfuscatingXMLParser(XMLStreamReader xmlStreamReader, CharSequence source, int start, int end, Appendable destination,
+    ObfuscatingXMLParser(XMLStreamReader xmlStreamReader, Source source, int start, int end, Appendable destination,
             Map<String, ElementConfig> elements, Map<QName, ElementConfig> qualifiedElements) {
 
         this.xmlStreamReader = xmlStreamReader;
         this.locationInfo = (LocationInfo) xmlStreamReader;
-        this.text = source;
+        this.source = source;
         this.textOffset = start;
         this.textEnd = end;
         this.textIndex = start;
@@ -72,31 +71,32 @@ final class ObfuscatingXMLParser {
     void processNext() throws XMLStreamException, IOException {
         int event = xmlStreamReader.next();
         int startIndex = (int) locationInfo.getStartingCharOffset() + textOffset;
-        int endIndex = (int) locationInfo.getEndingCharOffset() + textOffset;
+        latestEndIndex = (int) locationInfo.getEndingCharOffset() + textOffset;
 
-        if (startIndex > textIndex) {
-            // usually the leading processing instruction etc
-            appendUnobfuscated(textIndex, startIndex);
-        }
-
-        processEvent(event, startIndex, endIndex);
-        textIndex = endIndex;
+        processEvent(event, startIndex, latestEndIndex);
     }
 
     private void processEvent(int event, int startIndex, int endIndex) throws IOException {
         switch (event) {
             case XMLStreamConstants.START_ELEMENT:
+                finishLatestText(startIndex);
                 startElement(startIndex, endIndex);
+                textIndex = endIndex;
                 break;
             case XMLStreamConstants.END_ELEMENT:
+                finishLatestText(startIndex);
                 endElement(startIndex, endIndex);
+                textIndex = endIndex;
                 break;
             case XMLStreamConstants.CHARACTERS:
             case XMLStreamConstants.CDATA:
-                text(startIndex, endIndex);
+                // text can come in multiple events; don't finish the latest text, just update the index
+                textIndex = text(startIndex, endIndex);
                 break;
             default:
+                finishLatestText(startIndex);
                 appendUnobfuscated(startIndex, endIndex);
+                textIndex = endIndex;
                 break;
         }
     }
@@ -152,55 +152,80 @@ final class ObfuscatingXMLParser {
         // else currently no element is being obfuscated
     }
 
-    private void text(int startIndex, int endIndex) throws IOException {
+    private int text(int startIndex, int endIndex) throws IOException {
         if (currentElements.isEmpty()) {
             // not obfuscating anything
             appendUnobfuscated(startIndex, endIndex);
+            return endIndex;
+        }
+        ObfuscatedElement currentElement = currentElements.getLast();
+        if (!currentElement.config.obfuscateNestedElements && currentElement.depth != 1) {
+            // nested inside an element that is configured to not have nested elements obfuscated, don't obfuscate
+            appendUnobfuscated(startIndex, endIndex);
+            return endIndex;
+        }
+        if (!currentElement.config.performObfuscation) {
+            // the obfuscator is Obfuscator.none(), which means we don't need to obfuscate
+            appendUnobfuscated(startIndex, endIndex);
+            return endIndex;
+        }
+        // the text should be obfuscated, but not at this time
+        return textIndex;
+    }
+
+    private void finishLatestText(int currentEventStart) throws IOException {
+        if (textIndex >= currentEventStart) {
+            // no need to finish anything
+            return;
+        }
+        if (currentElements.isEmpty()) {
+            appendUnobfuscated(textIndex, currentEventStart);
+            textIndex = currentEventStart;
         } else {
+            // no need to check if obfuscation is necessary
+            // the text method should have already ensured that if obfuscation shouldn't be enabled, this branch of code should not be reached
             ObfuscatedElement currentElement = currentElements.getLast();
-            if (currentElement.config.obfuscateNestedElements || currentElement.depth == 1) {
-                // either obfuscate nested elements, or the text belongs to the config's element - obfuscate without whitespace
-                obfuscateText(startIndex, endIndex, currentElement.config.obfuscator);
-            } else {
-                // nested inside an element that is configured to not have nested elements obfuscated, don't obfuscate
-                appendUnobfuscated(startIndex, endIndex);
-            }
+            obfuscateText(textIndex, currentEventStart, currentElement.config.obfuscator);
         }
     }
 
+    void finishLatestText() throws IOException {
+        finishLatestText(latestEndIndex);
+    }
+
     private void obfuscateText(int startIndex, int endIndex, Obfuscator obfuscator) throws IOException {
-        int obfuscationStart = skipLeadingWhitespace(text, startIndex, endIndex);
-        int obfuscationEnd = skipTrailingWhitespace(text, obfuscationStart, endIndex);
+        int obfuscationStart = source.skipLeadingWhitespace(startIndex, endIndex);
+        int obfuscationEnd = source.skipTrailingWhitespace(obfuscationStart, endIndex);
 
         if (containsAtIndex(obfuscationStart, CDATA_START) && containsAtIndex(obfuscationEnd - CDATA_END.length(), CDATA_END)) {
             obfuscationStart += CDATA_START.length();
             obfuscationEnd -= CDATA_END.length();
 
-            obfuscationStart = skipLeadingWhitespace(text, obfuscationStart, obfuscationEnd);
-            obfuscationEnd = skipTrailingWhitespace(text, obfuscationStart, obfuscationEnd);
+            obfuscationStart = source.skipLeadingWhitespace(obfuscationStart, obfuscationEnd);
+            obfuscationEnd = source.skipTrailingWhitespace(obfuscationStart, obfuscationEnd);
         }
 
         if (startIndex < obfuscationStart) {
-            destination.append(text, startIndex, obfuscationStart);
+            source.appendTo(startIndex, obfuscationStart, destination);
         }
         if (obfuscationStart < obfuscationEnd) {
-            obfuscator.obfuscateText(text, obfuscationStart, obfuscationEnd, destination);
+            source.obfuscateText(obfuscationStart, obfuscationEnd, obfuscator, destination);
         }
         if (obfuscationEnd < endIndex) {
-            destination.append(text, obfuscationEnd, endIndex);
+            source.appendTo(obfuscationEnd, endIndex, destination);
         }
     }
 
     private void appendUnobfuscated(int startIndex, int endIndex) throws IOException {
-        destination.append(text, startIndex, endIndex);
+        source.appendTo(startIndex, endIndex, destination);
     }
 
     private boolean containsAtIndex(int index, String content) {
-        if (index + content.length() > text.length()) {
+        if (index + content.length() > source.length()) {
             return false;
         }
         for (int i = 0, j = index; i < content.length(); i++, j++) {
-            if (content.charAt(i) != text.charAt(j)) {
+            if (content.charAt(i) != source.charAt(j)) {
                 return false;
             }
         }
@@ -208,9 +233,7 @@ final class ObfuscatingXMLParser {
     }
 
     void appendRemainder() throws IOException {
-        int end = textEnd == -1 ? text.length() : textEnd;
-        destination.append(text, textIndex, end);
-        textIndex = end;
+        textIndex = source.appendRemainder(textIndex, textEnd, destination);
     }
 
     private static final class ObfuscatedElement {

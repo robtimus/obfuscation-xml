@@ -22,10 +22,18 @@ import static com.github.robtimus.obfuscation.Obfuscator.fixedValue;
 import static com.github.robtimus.obfuscation.Obfuscator.none;
 import static com.github.robtimus.obfuscation.support.CaseSensitivity.CASE_SENSITIVE;
 import static com.github.robtimus.obfuscation.xml.XMLObfuscator.builder;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.params.provider.Arguments.arguments;
+import static org.mockito.Mockito.atLeast;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
@@ -38,9 +46,17 @@ import java.io.StringWriter;
 import java.io.UncheckedIOException;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.function.Supplier;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import javax.xml.XMLConstants;
 import javax.xml.namespace.QName;
+import org.apache.log4j.Appender;
+import org.apache.log4j.Level;
+import org.apache.log4j.spi.LoggingEvent;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -49,6 +65,9 @@ import org.junit.jupiter.api.TestInstance.Lifecycle;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.mockito.ArgumentCaptor;
+import com.github.robtimus.junit.support.extension.testlogger.Reload4jLoggerContext;
+import com.github.robtimus.junit.support.extension.testlogger.TestLogger;
 import com.github.robtimus.obfuscation.Obfuscator;
 import com.github.robtimus.obfuscation.xml.XMLObfuscator.Builder;
 
@@ -288,12 +307,33 @@ class XMLObfuscatorTest {
 
         private final String input;
         private final String expected;
+        private final String inputWithLargeValues;
+        private final String expectedWithLargeValues;
         private final Supplier<Obfuscator> obfuscatorSupplier;
+
+        @TestLogger.ForClass(XMLObfuscator.class)
+        private Reload4jLoggerContext logger;
+
+        private Appender appender;
 
         ObfuscatorTest(String inputResource, String expectedResource, Supplier<Obfuscator> obfuscatorSupplier) {
             this.input = readResource(inputResource);
             this.expected = readResource(expectedResource);
             this.obfuscatorSupplier = obfuscatorSupplier;
+
+            String largeValue = createLargeValue();
+            inputWithLargeValues = input.replace("text&quot;", largeValue);
+            expectedWithLargeValues = expected
+                    .replace("text&quot;", largeValue)
+                    .replace("(total: " + input.length(), "(total: " + inputWithLargeValues.length());
+        }
+
+        @BeforeEach
+        void configureLogger() {
+            appender = mock(Appender.class);
+            logger.setLevel(Level.TRACE)
+                    .setAppender(appender)
+                    .useParentAppenders(false);
         }
 
         @Test
@@ -302,6 +342,19 @@ class XMLObfuscatorTest {
             Obfuscator obfuscator = obfuscatorSupplier.get();
 
             assertEquals(expected, obfuscator.obfuscateText("x" + input + "x", 1, 1 + input.length()).toString());
+
+            assertNoTruncationLogging(appender);
+        }
+
+        @Test
+        @DisplayName("obfuscateText(CharSequence, int, int) with large values")
+        void testObfuscateTextCharSequenceWithLargeValues() {
+            Obfuscator obfuscator = obfuscatorSupplier.get();
+
+            assertEquals(expectedWithLargeValues,
+                    obfuscator.obfuscateText("x" + inputWithLargeValues + "x", 1, 1 + inputWithLargeValues.length()).toString());
+
+            assertNoTruncationLogging(appender);
         }
 
         @Test
@@ -313,6 +366,21 @@ class XMLObfuscatorTest {
             obfuscator.obfuscateText("x" + input + "x", 1, 1 + input.length(), destination);
             assertEquals(expected, destination.toString());
             verify(destination, never()).close();
+
+            assertNoTruncationLogging(appender);
+        }
+
+        @Test
+        @DisplayName("obfuscateText(CharSequence, int, int, Appendable) with large values")
+        void testObfuscateTextCharSequenceToAppendableWithLargeValues() throws IOException {
+            Obfuscator obfuscator = obfuscatorSupplier.get();
+
+            StringWriter destination = spy(new StringWriter());
+            obfuscator.obfuscateText("x" + inputWithLargeValues + "x", 1, 1 + inputWithLargeValues.length(), destination);
+            assertEquals(expectedWithLargeValues, destination.toString());
+            verify(destination, never()).close();
+
+            assertNoTruncationLogging(appender);
         }
 
         @Test
@@ -334,14 +402,64 @@ class XMLObfuscatorTest {
             assertEquals(expected, destination.toString());
             verify(reader, never()).close();
             verify(destination, never()).close();
+
+            assertNoTruncationLogging(appender);
         }
 
         @Test
-        @DisplayName("streamTo(Appendable")
+        @DisplayName("obfuscateText(Reader, Appendable) with large values")
+        @SuppressWarnings("resource")
+        void testObfuscateTextReaderToAppendableWithLargeValues() throws IOException {
+            Obfuscator obfuscator = obfuscatorSupplier.get();
+
+            StringWriter destination = spy(new StringWriter());
+            Reader reader = spy(new StringReader(inputWithLargeValues));
+            obfuscator.obfuscateText(reader, destination);
+            assertEquals(expectedWithLargeValues, destination.toString());
+            verify(reader, never()).close();
+            verify(destination, never()).close();
+
+            destination.getBuffer().delete(0, destination.getBuffer().length());
+            reader = spy(new BufferedReader(new StringReader(inputWithLargeValues)));
+            obfuscator.obfuscateText(reader, destination);
+            assertEquals(expectedWithLargeValues, destination.toString());
+            verify(reader, never()).close();
+            verify(destination, never()).close();
+
+            assertTruncationLogging(appender);
+        }
+
+        @Test
+        @DisplayName("obfuscateText(Reader, Appendable) with large values - logging disabled")
+        @SuppressWarnings("resource")
+        void testObfuscateTextReaderToAppendableWithLargeValuesLoggingDisabled() throws IOException {
+            logger.setLevel(Level.DEBUG);
+
+            Obfuscator obfuscator = obfuscatorSupplier.get();
+
+            StringWriter destination = spy(new StringWriter());
+            Reader reader = spy(new StringReader(inputWithLargeValues));
+            obfuscator.obfuscateText(reader, destination);
+            assertEquals(expectedWithLargeValues, destination.toString());
+            verify(reader, never()).close();
+            verify(destination, never()).close();
+
+            destination.getBuffer().delete(0, destination.getBuffer().length());
+            reader = spy(new BufferedReader(new StringReader(inputWithLargeValues)));
+            obfuscator.obfuscateText(reader, destination);
+            assertEquals(expectedWithLargeValues, destination.toString());
+            verify(reader, never()).close();
+            verify(destination, never()).close();
+
+            assertNoTruncationLogging(appender);
+        }
+
+        @Test
+        @DisplayName("streamTo(Appendable)")
         void testStreamTo() throws IOException {
             Obfuscator obfuscator = obfuscatorSupplier.get();
 
-            Writer writer = spy(new StringWriter());
+            StringWriter writer = spy(new StringWriter());
             try (Writer w = obfuscator.streamTo(writer)) {
                 int index = 0;
                 while (index < input.length()) {
@@ -352,6 +470,78 @@ class XMLObfuscatorTest {
             }
             assertEquals(expected, writer.toString());
             verify(writer, never()).close();
+
+            assertNoTruncationLogging(appender);
+        }
+
+        @Test
+        @DisplayName("streamTo(Appendable) with large values")
+        void testStreamToWithLargeValues() throws IOException {
+            Obfuscator obfuscator = obfuscatorSupplier.get();
+
+            StringWriter writer = spy(new StringWriter());
+            try (Writer w = obfuscator.streamTo(writer)) {
+                int index = 0;
+                while (index < inputWithLargeValues.length()) {
+                    int to = Math.min(index + 5, inputWithLargeValues.length());
+                    w.write(inputWithLargeValues, index, to - index);
+                    index = to;
+                }
+            }
+            assertEquals(expectedWithLargeValues, writer.toString());
+            verify(writer, never()).close();
+
+            // streamTo caches the entire results, then obfuscate the cached contents as a CharSequence
+            assertNoTruncationLogging(appender);
+        }
+
+        private String createLargeValue() {
+            char[] chars = new char[Source.OfReader.PREFERRED_MAX_BUFFER_SIZE];
+            for (int i = 0; i < chars.length; i += 10) {
+                for (int j = 0; j < 10 && i + j < chars.length; j++) {
+                    chars[i + j] = (char) ('0' + j);
+                }
+            }
+            return new String(chars);
+        }
+
+        private void assertNoTruncationLogging(Appender appender) {
+            ArgumentCaptor<LoggingEvent> loggingEvents = ArgumentCaptor.forClass(LoggingEvent.class);
+
+            verify(appender, atLeast(0)).doAppend(loggingEvents.capture());
+
+            List<String> traceMessages = loggingEvents.getAllValues().stream()
+                    .filter(event -> event.getLevel() == Level.TRACE)
+                    .map(LoggingEvent::getRenderedMessage)
+                    .collect(Collectors.toList());
+
+            assertThat(traceMessages, hasSize(0));
+        }
+
+        private void assertTruncationLogging(Appender appender) {
+            ArgumentCaptor<LoggingEvent> loggingEvents = ArgumentCaptor.forClass(LoggingEvent.class);
+
+            verify(appender, atLeast(1)).doAppend(loggingEvents.capture());
+
+            List<String> traceMessages = loggingEvents.getAllValues().stream()
+                    .filter(event -> event.getLevel() == Level.TRACE)
+                    .map(LoggingEvent::getRenderedMessage)
+                    .collect(Collectors.toList());
+
+            assertThat(traceMessages, hasSize(greaterThanOrEqualTo(1)));
+
+            Pattern pattern = Pattern.compile(".*: (\\d+)");
+            int expectedMax = (int) (Source.OfReader.PREFERRED_MAX_BUFFER_SIZE * 1.05D);
+            List<Integer> sizes = traceMessages.stream()
+                    .map(message -> extractSize(message, pattern))
+                    .collect(Collectors.toList());
+            assertThat(sizes, everyItem(lessThanOrEqualTo(expectedMax)));
+        }
+
+        private int extractSize(String message, Pattern pattern) {
+            Matcher matcher = pattern.matcher(message);
+            assertTrue(matcher.find());
+            return Integer.parseInt(matcher.group(1));
         }
     }
 

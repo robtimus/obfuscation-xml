@@ -24,10 +24,12 @@ final class ElementConfig {
 
     final Obfuscator obfuscator;
     final boolean obfuscateNestedElements;
+    final boolean performObfuscation;
 
     ElementConfig(Obfuscator obfuscator, boolean obfuscateNestedElements) {
         this.obfuscator = Objects.requireNonNull(obfuscator);
         this.obfuscateNestedElements = obfuscateNestedElements;
+        this.performObfuscation = !obfuscator.equals(Obfuscator.none());
     }
 
     @Override

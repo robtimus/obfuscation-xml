@@ -21,7 +21,6 @@ import static com.github.robtimus.obfuscation.support.ObfuscatorUtils.appendAtMo
 import static com.github.robtimus.obfuscation.support.ObfuscatorUtils.checkStartAndEnd;
 import static com.github.robtimus.obfuscation.support.ObfuscatorUtils.copyTo;
 import static com.github.robtimus.obfuscation.support.ObfuscatorUtils.counting;
-import static com.github.robtimus.obfuscation.support.ObfuscatorUtils.discardAll;
 import static com.github.robtimus.obfuscation.support.ObfuscatorUtils.reader;
 import java.io.IOException;
 import java.io.Reader;
@@ -84,18 +83,19 @@ public final class XMLObfuscator extends Obfuscator {
     private static XMLInputFactory createInputFactory() {
         // Explicitly use Woodstox; any other implementation may not produce the correct locations
         XMLInputFactory inputFactory = new WstxInputFactory();
-        trySetProperty(inputFactory, XMLConstants.ACCESS_EXTERNAL_DTD, ""); //$NON-NLS-1$
-        trySetProperty(inputFactory, XMLConstants.ACCESS_EXTERNAL_SCHEMA, ""); //$NON-NLS-1$
-        trySetProperty(inputFactory, XMLConstants.ACCESS_EXTERNAL_STYLESHEET, ""); //$NON-NLS-1$
-        trySetProperty(inputFactory, XMLConstants.FEATURE_SECURE_PROCESSING, true);
+        setPropertyIfSupported(inputFactory, XMLConstants.ACCESS_EXTERNAL_DTD, ""); //$NON-NLS-1$
+        setPropertyIfSupported(inputFactory, XMLConstants.ACCESS_EXTERNAL_SCHEMA, ""); //$NON-NLS-1$
+        setPropertyIfSupported(inputFactory, XMLConstants.ACCESS_EXTERNAL_STYLESHEET, ""); //$NON-NLS-1$
+        setPropertyIfSupported(inputFactory, XMLConstants.FEATURE_SECURE_PROCESSING, true);
         return inputFactory;
     }
 
-    private static void trySetProperty(XMLInputFactory inputFactory, String name, Object value) {
-        try {
+    private static void setPropertyIfSupported(XMLInputFactory inputFactory, String name, Object value) {
+        if (inputFactory.isPropertySupported(name)) {
             inputFactory.setProperty(name, value);
-        } catch (@SuppressWarnings("unused") IllegalArgumentException e) {
-            LOGGER.warn(Messages.XMLObfuscator.unsupportedProperty(name));
+        } else {
+            String message = Messages.XMLObfuscator.unsupportedProperty(name);
+            LOGGER.warn(message);
         }
     }
 
@@ -113,7 +113,7 @@ public final class XMLObfuscator extends Obfuscator {
         @SuppressWarnings("resource")
         Reader reader = reader(s, start, end);
         LimitAppendable appendable = appendAtMost(destination, limit);
-        obfuscateText(reader, s, start, end, appendable);
+        obfuscateText(reader, new Source.OfCharSequence(s), start, end, appendable);
         if (appendable.limitExceeded() && truncatedIndicator != null) {
             destination.append(String.format(truncatedIndicator, end - start));
         }
@@ -121,29 +121,36 @@ public final class XMLObfuscator extends Obfuscator {
 
     @Override
     public void obfuscateText(Reader input, Appendable destination) throws IOException {
-        StringBuilder contents = new StringBuilder();
         @SuppressWarnings("resource")
-        CountingReader reader = counting(copyTo(input, contents));
+        CountingReader countingReader = counting(input);
+        Source.OfReader source = new Source.OfReader(countingReader, LOGGER);
+        @SuppressWarnings("resource")
+        Reader reader = copyTo(countingReader, source);
         LimitAppendable appendable = appendAtMost(destination, limit);
-        obfuscateText(reader, contents, 0, -1, appendable);
+        obfuscateText(reader, source, 0, -1, appendable);
         if (appendable.limitExceeded() && truncatedIndicator != null) {
-            destination.append(String.format(truncatedIndicator, reader.count()));
+            destination.append(String.format(truncatedIndicator, countingReader.count()));
         }
     }
 
-    private void obfuscateText(Reader input, CharSequence s, int start, int end, LimitAppendable destination) throws IOException {
+    private void obfuscateText(Reader input, Source source, int start, int end, LimitAppendable destination) throws IOException {
+        XMLStreamReader xmlStreamReader;
         try {
-            XMLStreamReader xmlStreamReader = INPUT_FACTORY.createXMLStreamReader(input);
-            ObfuscatingXMLParser parser = new ObfuscatingXMLParser(xmlStreamReader, s, start, end, destination, elements, qualifiedElements);
+            xmlStreamReader = INPUT_FACTORY.createXMLStreamReader(input);
+        } catch (XMLStreamException e) {
+            LOGGER.warn(Messages.XMLObfuscator.createXMLStreamReaderFailure.warning(), e);
+            destination.append(Messages.XMLObfuscator.createXMLStreamReaderFailure.text());
+            return;
+        }
+        ObfuscatingXMLParser parser = new ObfuscatingXMLParser(xmlStreamReader, source, start, end, destination, elements, qualifiedElements);
+        try {
             while (parser.hasNext() && !destination.limitExceeded()) {
                 parser.processNext();
             }
-
-            // Read the remainder so the final append will include all text
-            discardAll(input);
             parser.appendRemainder();
         } catch (XMLStreamException e) {
             LOGGER.warn(Messages.XMLObfuscator.malformedXML.warning(), e);
+            parser.finishLatestText();
             if (malformedXMLWarning != null) {
                 destination.append(malformedXMLWarning);
             }
