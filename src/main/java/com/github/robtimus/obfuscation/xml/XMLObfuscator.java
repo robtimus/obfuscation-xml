@@ -22,6 +22,7 @@ import static com.github.robtimus.obfuscation.support.ObfuscatorUtils.checkStart
 import static com.github.robtimus.obfuscation.support.ObfuscatorUtils.copyTo;
 import static com.github.robtimus.obfuscation.support.ObfuscatorUtils.counting;
 import static com.github.robtimus.obfuscation.support.ObfuscatorUtils.reader;
+import static com.github.robtimus.obfuscation.support.ObfuscatorUtils.writer;
 import java.io.IOException;
 import java.io.Reader;
 import java.io.Writer;
@@ -33,11 +34,18 @@ import java.util.function.Function;
 import javax.xml.XMLConstants;
 import javax.xml.namespace.QName;
 import javax.xml.stream.XMLInputFactory;
+import javax.xml.stream.XMLOutputFactory;
+import javax.xml.stream.XMLResolver;
 import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamReader;
+import javax.xml.stream.XMLStreamWriter;
+import org.codehaus.stax2.XMLOutputFactory2;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import com.ctc.wstx.api.WstxInputProperties;
+import com.ctc.wstx.exc.WstxLazyException;
 import com.ctc.wstx.stax.WstxInputFactory;
+import com.ctc.wstx.stax.WstxOutputFactory;
 import com.github.robtimus.obfuscation.Obfuscator;
 import com.github.robtimus.obfuscation.support.CachingObfuscatingWriter;
 import com.github.robtimus.obfuscation.support.CaseSensitivity;
@@ -53,6 +61,11 @@ import com.github.robtimus.obfuscation.support.MapBuilder;
  * By default, if an obfuscator is configured for an element, it will be used to obfuscate the text of all nested elements as well. This can be turned
  * off using {@link Builder#excludeNestedElementsByDefault()} and/or {@link ElementConfigurer#excludeNestedElements()}. This will allow the nested
  * elements to use their own obfuscators.
+ * <p>
+ * Note: preferably, obfuscation is done in such a way that the original structure and formatting is maintained. However, some functionality does not
+ * allow for this to happen. If this functionality is needed, obfuscation will instead generate new, obfuscated XML documents. The resulting
+ * obfuscated XML documents may slightly differ from the original. Methods in class {@link Builder} will mention it if they result in generating new
+ * XML documents.
  *
  * @author Rob Spoor
  */
@@ -61,32 +74,47 @@ public final class XMLObfuscator extends Obfuscator {
     private static final Logger LOGGER = LoggerFactory.getLogger(XMLObfuscator.class);
 
     private static final XMLInputFactory INPUT_FACTORY = createInputFactory();
+    private static final XMLOutputFactory OUTPUT_FACTORY = createOutputFactory();
 
     private final Map<String, ElementConfig> elements;
     private final Map<QName, ElementConfig> qualifiedElements;
+
+    private final Map<String, AttributeConfig> attributes;
+    private final Map<QName, AttributeConfig> qualifiedAttributes;
 
     private final String malformedXMLWarning;
 
     private final long limit;
     private final String truncatedIndicator;
 
+    private final boolean useXmlWriter;
+
     private XMLObfuscator(ObfuscatorBuilder builder) {
         elements = builder.elements();
         qualifiedElements = builder.qualifiedElements();
+
+        attributes = builder.attributes();
+        qualifiedAttributes = builder.qualifiedAttributes();
 
         malformedXMLWarning = builder.malformedXMLWarning;
 
         limit = builder.limit;
         truncatedIndicator = builder.truncatedIndicator;
+
+        useXmlWriter = builder.useXmlWriter;
     }
 
-    private static XMLInputFactory createInputFactory() {
+    static XMLInputFactory createInputFactory() {
         // Explicitly use Woodstox; any other implementation may not produce the correct locations
         XMLInputFactory inputFactory = new WstxInputFactory();
         setPropertyIfSupported(inputFactory, XMLConstants.ACCESS_EXTERNAL_DTD, ""); //$NON-NLS-1$
         setPropertyIfSupported(inputFactory, XMLConstants.ACCESS_EXTERNAL_SCHEMA, ""); //$NON-NLS-1$
         setPropertyIfSupported(inputFactory, XMLConstants.ACCESS_EXTERNAL_STYLESHEET, ""); //$NON-NLS-1$
         setPropertyIfSupported(inputFactory, XMLConstants.FEATURE_SECURE_PROCESSING, true);
+        setPropertyIfSupported(inputFactory, XMLInputFactory.IS_SUPPORTING_EXTERNAL_ENTITIES, false);
+        setPropertyIfSupported(inputFactory, WstxInputProperties.P_DTD_RESOLVER, (XMLResolver) (publicID, systemID, baseURI, namespace) -> {
+            throw new XMLStreamException(Messages.XMLObfuscator.externalDTDsNotSupported(systemID));
+        });
         return inputFactory;
     }
 
@@ -97,6 +125,15 @@ public final class XMLObfuscator extends Obfuscator {
             String message = Messages.XMLObfuscator.unsupportedProperty(name);
             LOGGER.warn(message);
         }
+    }
+
+    private static XMLOutputFactory createOutputFactory() {
+        // Explicitly use Woodstox, to be consistent with the input factory
+        XMLOutputFactory2 outputFactory = new WstxOutputFactory();
+        outputFactory.configureForSpeed();
+        // Needed to get namespace declarations in the resulting XML
+        outputFactory.setProperty(XMLOutputFactory.IS_REPAIRING_NAMESPACES, true);
+        return outputFactory;
     }
 
     @Override
@@ -110,50 +147,127 @@ public final class XMLObfuscator extends Obfuscator {
     @Override
     public void obfuscateText(CharSequence s, int start, int end, Appendable destination) throws IOException {
         checkStartAndEnd(s, start, end);
-        @SuppressWarnings("resource")
-        Reader reader = reader(s, start, end);
-        LimitAppendable appendable = appendAtMost(destination, limit);
-        obfuscateText(reader, new Source.OfCharSequence(s), start, end, appendable);
-        if (appendable.limitExceeded() && truncatedIndicator != null) {
-            destination.append(String.format(truncatedIndicator, end - start));
+        if (useXmlWriter) {
+            obfuscateTextWriting(s, start, end, destination);
+        } else {
+            obfuscateTextIndexed(s, start, end, destination);
         }
     }
 
     @Override
     public void obfuscateText(Reader input, Appendable destination) throws IOException {
+        if (useXmlWriter) {
+            obfuscateTextWriting(input, destination);
+        } else {
+            obfuscateTextIndexed(input, destination);
+        }
+    }
+
+    private void obfuscateTextWriting(CharSequence s, int start, int end, Appendable destination) throws IOException {
+        @SuppressWarnings("resource")
+        Reader reader = reader(s, start, end);
+        LimitAppendable appendable = appendAtMost(destination, limit);
+        obfuscateTextWriting(reader, appendable);
+        if (appendable.limitExceeded() && truncatedIndicator != null) {
+            destination.append(String.format(truncatedIndicator, end - start));
+        }
+    }
+
+    private void obfuscateTextWriting(Reader input, Appendable destination) throws IOException {
+        @SuppressWarnings("resource")
+        CountingReader countingReader = counting(input);
+        LimitAppendable appendable = appendAtMost(destination, limit);
+        obfuscateTextWriting(countingReader, appendable);
+        if (appendable.limitExceeded() && truncatedIndicator != null) {
+            destination.append(String.format(truncatedIndicator, countingReader.count()));
+        }
+    }
+
+    private void obfuscateTextWriting(Reader reader, LimitAppendable destination) throws IOException {
+        WritingObfuscatingXMLParser parser = createWritingParser(reader, destination);
+        try {
+            parser.initialize();
+            try {
+                // Cannot abort early as that could lead to the XML document being modified, e.g. automatically closed
+                while (parser.hasNext()) {
+                    parser.processNext();
+                }
+            } finally {
+                parser.flush();
+            }
+        } catch (XMLStreamException | WstxLazyException e) {
+            LOGGER.warn(Messages.XMLObfuscator.malformedXML.warning(), e);
+            if (malformedXMLWarning != null) {
+                destination.append(malformedXMLWarning);
+            }
+        }
+    }
+
+    private WritingObfuscatingXMLParser createWritingParser(Reader input, LimitAppendable destination) {
+        XMLStreamReader xmlStreamReader = createXmlStreamReader(input);
+        XMLStreamWriter xmlStreamWriter = createXmlStreamWriter(destination);
+        return new WritingObfuscatingXMLParser(xmlStreamReader, xmlStreamWriter, destination,
+                elements, qualifiedElements, attributes, qualifiedAttributes);
+    }
+
+    private void obfuscateTextIndexed(CharSequence s, int start, int end, Appendable destination) throws IOException {
+        @SuppressWarnings("resource")
+        Reader reader = reader(s, start, end);
+        LimitAppendable appendable = appendAtMost(destination, limit);
+        obfuscateTextIndexed(reader, new Source.OfCharSequence(s), start, end, appendable);
+        if (appendable.limitExceeded() && truncatedIndicator != null) {
+            destination.append(String.format(truncatedIndicator, end - start));
+        }
+    }
+
+    private void obfuscateTextIndexed(Reader input, Appendable destination) throws IOException {
         @SuppressWarnings("resource")
         CountingReader countingReader = counting(input);
         Source.OfReader source = new Source.OfReader(countingReader, LOGGER);
         @SuppressWarnings("resource")
         Reader reader = copyTo(countingReader, source);
         LimitAppendable appendable = appendAtMost(destination, limit);
-        obfuscateText(reader, source, 0, -1, appendable);
+        obfuscateTextIndexed(reader, source, 0, -1, appendable);
         if (appendable.limitExceeded() && truncatedIndicator != null) {
             destination.append(String.format(truncatedIndicator, countingReader.count()));
         }
     }
 
-    private void obfuscateText(Reader input, Source source, int start, int end, LimitAppendable destination) throws IOException {
-        XMLStreamReader xmlStreamReader;
-        try {
-            xmlStreamReader = INPUT_FACTORY.createXMLStreamReader(input);
-        } catch (XMLStreamException e) {
-            LOGGER.warn(Messages.XMLObfuscator.createXMLStreamReaderFailure.warning(), e);
-            destination.append(Messages.XMLObfuscator.createXMLStreamReaderFailure.text());
-            return;
-        }
-        ObfuscatingXMLParser parser = new ObfuscatingXMLParser(xmlStreamReader, source, start, end, destination, elements, qualifiedElements);
+    private void obfuscateTextIndexed(Reader input, Source source, int start, int end, LimitAppendable destination) throws IOException {
+        IndexedObfuscatingXMLParser parser = createIndexedParser(input, source, start, end, destination);
         try {
             while (parser.hasNext() && !destination.limitExceeded()) {
                 parser.processNext();
             }
             parser.appendRemainder();
-        } catch (XMLStreamException e) {
+        } catch (XMLStreamException | WstxLazyException e) {
             LOGGER.warn(Messages.XMLObfuscator.malformedXML.warning(), e);
             parser.finishLatestText();
             if (malformedXMLWarning != null) {
                 destination.append(malformedXMLWarning);
             }
+        }
+    }
+
+    private IndexedObfuscatingXMLParser createIndexedParser(Reader input, Source source, int start, int end, LimitAppendable destination) {
+        XMLStreamReader xmlStreamReader = createXmlStreamReader(input);
+        return new IndexedObfuscatingXMLParser(xmlStreamReader, source, start, end, destination, elements, qualifiedElements);
+    }
+
+    private XMLStreamReader createXmlStreamReader(Reader input) {
+        try {
+            return INPUT_FACTORY.createXMLStreamReader(input);
+        } catch (XMLStreamException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    @SuppressWarnings("resource")
+    private XMLStreamWriter createXmlStreamWriter(Appendable destination) {
+        try {
+            return OUTPUT_FACTORY.createXMLStreamWriter(writer(destination));
+        } catch (XMLStreamException e) {
+            throw new IllegalStateException(e);
         }
     }
 
@@ -173,15 +287,27 @@ public final class XMLObfuscator extends Obfuscator {
         XMLObfuscator other = (XMLObfuscator) o;
         return elements.equals(other.elements)
                 && qualifiedElements.equals(other.qualifiedElements)
+                && attributes.equals(other.attributes)
+                && qualifiedAttributes.equals(other.qualifiedAttributes)
                 && Objects.equals(malformedXMLWarning, other.malformedXMLWarning)
                 && limit == other.limit
                 && Objects.equals(truncatedIndicator, other.truncatedIndicator);
+        // useXmlWriter is calculated, not included
     }
 
     @Override
     public int hashCode() {
-        return elements.hashCode() ^ qualifiedElements.hashCode() ^ Objects.hashCode(malformedXMLWarning) ^ Long.hashCode(limit)
-                ^ Objects.hashCode(truncatedIndicator);
+        final int prime = 31;
+        int result = 1;
+        result = prime * result + elements.hashCode();
+        result = prime * result + qualifiedElements.hashCode();
+        result = prime * result + attributes.hashCode();
+        result = prime * result + qualifiedAttributes.hashCode();
+        result = prime * result + Objects.hashCode(malformedXMLWarning);
+        result = prime * result + Long.hashCode(limit);
+        result = prime * result + Objects.hashCode(truncatedIndicator);
+        // useXmlWriter is calculated, not included
+        return result;
     }
 
     @Override
@@ -190,9 +316,12 @@ public final class XMLObfuscator extends Obfuscator {
         return getClass().getName()
                 + "[elements=" + elements
                 + ",qualifiedElements=" + qualifiedElements
+                + ",attributes=" + attributes
+                + ",qualifiedAttributes=" + qualifiedAttributes
                 + ",malformedXMLWarning=" + malformedXMLWarning
                 + ",limit=" + limit
                 + ",truncatedIndicator=" + truncatedIndicator
+                // useXmlWriter is calculated, not included
                 + "]";
     }
 
@@ -249,6 +378,56 @@ public final class XMLObfuscator extends Obfuscator {
          * @throws IllegalArgumentException If an element with the same qualified name was already added.
          */
         ElementConfigurer withElement(QName element, Obfuscator obfuscator);
+
+        /**
+         * Adds an attribute to obfuscate.
+         * This method is an alias for {@link #withAttribute(String, Obfuscator, CaseSensitivity)} with the last specified default case sensitivity
+         * using {@link #caseSensitiveByDefault()} or {@link #caseInsensitiveByDefault()}. The default is {@link CaseSensitivity#CASE_SENSITIVE}.
+         * <p>
+         * Note: because locations of attributes are not easily available, XML obfuscators will generate new, obfuscated documents when attributes
+         * need to be obfuscated.
+         *
+         * @param attribute The local name of the attribute.
+         * @param obfuscator The obfuscator to use for obfuscating the attribute.
+         * @return An object that can be used to configure the attribute, or continue building {@link XMLObfuscator XMLObfuscators}.
+         * @throws NullPointerException If the given attribute name or obfuscator is {@code null}.
+         * @throws IllegalArgumentException If an attribute with the same local name and the same case sensitivity was already added.
+         * @since 1.2
+         */
+        AttributeConfigurer withAttribute(String attribute, Obfuscator obfuscator);
+
+        /**
+         * Adds an attribute to obfuscate.
+         * <p>
+         * Note: because locations of attributes are not easily available, XML obfuscators will generate new, obfuscated documents when attributes
+         * need to be obfuscated.
+         *
+         * @param attribute The local name of the attribute.
+         * @param obfuscator The obfuscator to use for obfuscating the attribute.
+         * @param caseSensitivity The case sensitivity for the attribute.
+         * @return An object that can be used to configure the attribute, or continue building {@link XMLObfuscator XMLObfuscators}.
+         * @throws NullPointerException If the given attribute name, obfuscator or case sensitivity is {@code null}.
+         * @throws IllegalArgumentException If an attribute with the same local name and the same case sensitivity was already added.
+         * @since 1.2
+         */
+        AttributeConfigurer withAttribute(String attribute, Obfuscator obfuscator, CaseSensitivity caseSensitivity);
+
+        /**
+         * Adds an attribute to obfuscate.
+         * Any attribute added using this method will take precedence over attributes added using {@link #withAttribute(String, Obfuscator)} or
+         * {@link #withAttribute(String, Obfuscator, CaseSensitivity)}.
+         * <p>
+         * Note: because locations of attributes are not easily available, XML obfuscators will generate new, obfuscated documents when attributes
+         * need to be obfuscated.
+         *
+         * @param attribute The qualified name of the attribute.
+         * @param obfuscator The obfuscator to use for obfuscating the attribute.
+         * @return An object that can be used to configure the attribute, or continue building {@link XMLObfuscator XMLObfuscators}.
+         * @throws NullPointerException If the given attribute name or obfuscator is {@code null}.
+         * @throws IllegalArgumentException If an attribute with the same qualified name was already added.
+         * @since 1.2
+         */
+        AttributeConfigurer withAttribute(QName attribute, Obfuscator obfuscator);
 
         /**
          * Sets the default case sensitivity for new elements to {@link CaseSensitivity#CASE_SENSITIVE}. This is the default setting.
@@ -396,6 +575,16 @@ public final class XMLObfuscator extends Obfuscator {
     }
 
     /**
+     * An object that can be used to configure an attribute that should be obfuscated.
+     *
+     * @author Rob Spoor
+     * @since 1.2
+     */
+    public interface AttributeConfigurer extends Builder {
+        // This interface exists to not have to make breaking changes when attributes can be further configured
+    }
+
+    /**
      * An object that can be used to configure handling when the obfuscated result exceeds a pre-defined limit.
      *
      * @author Rob Spoor
@@ -415,10 +604,13 @@ public final class XMLObfuscator extends Obfuscator {
         LimitConfigurer withTruncatedIndicator(String pattern);
     }
 
-    private static final class ObfuscatorBuilder implements ElementConfigurer, LimitConfigurer {
+    private static final class ObfuscatorBuilder implements ElementConfigurer, AttributeConfigurer, LimitConfigurer {
 
         private final MapBuilder<ElementConfig> elements;
         private final Map<QName, ElementConfig> qualifiedElements;
+
+        private final MapBuilder<AttributeConfig> attributes;
+        private final Map<QName, AttributeConfig> qualifiedAttributes;
 
         private String malformedXMLWarning;
 
@@ -428,16 +620,24 @@ public final class XMLObfuscator extends Obfuscator {
         // default settings
         private boolean obfuscateNestedElementsByDefault;
 
-        // per element settings
+        // per element / attribute settings
         private String element;
         private QName qualifiedElement;
+        private String attribute;
+        private QName qualifiedAttribute;
         private Obfuscator obfuscator;
         private CaseSensitivity caseSensitivity;
         private boolean obfuscateNestedElements;
 
+        // calculated settings
+        private boolean useXmlWriter;
+
         private ObfuscatorBuilder() {
             elements = new MapBuilder<>();
             qualifiedElements = new HashMap<>();
+
+            attributes = new MapBuilder<>();
+            qualifiedAttributes = new HashMap<>();
 
             malformedXMLWarning = Messages.XMLObfuscator.malformedXML.text();
 
@@ -445,11 +645,13 @@ public final class XMLObfuscator extends Obfuscator {
             truncatedIndicator = "... (total: %d)"; //$NON-NLS-1$
 
             obfuscateNestedElementsByDefault = true;
+
+            useXmlWriter = false;
         }
 
         @Override
         public ElementConfigurer withElement(String element, Obfuscator obfuscator) {
-            addLastElement();
+            addLastElementOrAttribute();
 
             elements.testEntry(element);
 
@@ -463,7 +665,7 @@ public final class XMLObfuscator extends Obfuscator {
 
         @Override
         public ElementConfigurer withElement(String element, Obfuscator obfuscator, CaseSensitivity caseSensitivity) {
-            addLastElement();
+            addLastElementOrAttribute();
 
             elements.testEntry(element, caseSensitivity);
 
@@ -477,7 +679,7 @@ public final class XMLObfuscator extends Obfuscator {
 
         @Override
         public ElementConfigurer withElement(QName element, Obfuscator obfuscator) {
-            addLastElement();
+            addLastElementOrAttribute();
 
             Objects.requireNonNull(element);
             Objects.requireNonNull(obfuscator);
@@ -495,14 +697,66 @@ public final class XMLObfuscator extends Obfuscator {
         }
 
         @Override
+        public AttributeConfigurer withAttribute(String attribute, Obfuscator obfuscator) {
+            addLastElementOrAttribute();
+
+            attributes.testEntry(attribute);
+
+            this.attribute = attribute;
+            this.obfuscator = obfuscator;
+            this.caseSensitivity = null;
+
+            useXmlWriter = true;
+
+            return this;
+        }
+
+        @Override
+        public AttributeConfigurer withAttribute(String attribute, Obfuscator obfuscator, CaseSensitivity caseSensitivity) {
+            addLastElementOrAttribute();
+
+            attributes.testEntry(attribute, caseSensitivity);
+
+            this.attribute = attribute;
+            this.obfuscator = obfuscator;
+            this.caseSensitivity = caseSensitivity;
+
+            useXmlWriter = true;
+
+            return this;
+        }
+
+        @Override
+        public AttributeConfigurer withAttribute(QName attribute, Obfuscator obfuscator) {
+            addLastElementOrAttribute();
+
+            Objects.requireNonNull(attribute);
+            Objects.requireNonNull(obfuscator);
+
+            if (qualifiedAttributes.containsKey(attribute)) {
+                throw new IllegalArgumentException(Messages.XMLObfuscator.duplicateAttribute(attribute));
+            }
+
+            this.qualifiedAttribute = attribute;
+            this.obfuscator = obfuscator;
+            this.caseSensitivity = null;
+
+            useXmlWriter = true;
+
+            return this;
+        }
+
+        @Override
         public Builder caseSensitiveByDefault() {
             elements.caseSensitiveByDefault();
+            attributes.caseSensitiveByDefault();
             return this;
         }
 
         @Override
         public Builder caseInsensitiveByDefault() {
             elements.caseInsensitiveByDefault();
+            attributes.caseInsensitiveByDefault();
             return this;
         }
 
@@ -559,8 +813,26 @@ public final class XMLObfuscator extends Obfuscator {
             return Collections.unmodifiableMap(new HashMap<>(qualifiedElements));
         }
 
-        private void addLastElement() {
-            if (element != null) {
+        private Map<String, AttributeConfig> attributes() {
+            return attributes.build();
+        }
+
+        private Map<QName, AttributeConfig> qualifiedAttributes() {
+            return Collections.unmodifiableMap(new HashMap<>(qualifiedAttributes));
+        }
+
+        private void addLastElementOrAttribute() {
+            if (attribute != null) {
+                AttributeConfig attributeConfig = new AttributeConfig(obfuscator);
+                if (caseSensitivity != null) {
+                    attributes.withEntry(attribute, attributeConfig, caseSensitivity);
+                } else {
+                    attributes.withEntry(attribute, attributeConfig);
+                }
+            } else if (qualifiedAttribute != null) {
+                AttributeConfig attributeConfig = new AttributeConfig(obfuscator);
+                qualifiedAttributes.put(qualifiedAttribute, attributeConfig);
+            } else if (element != null) {
                 ElementConfig elementConfig = new ElementConfig(obfuscator, obfuscateNestedElements);
                 if (caseSensitivity != null) {
                     elements.withEntry(element, elementConfig, caseSensitivity);
@@ -574,6 +846,8 @@ public final class XMLObfuscator extends Obfuscator {
 
             element = null;
             qualifiedElement = null;
+            attribute = null;
+            qualifiedAttribute = null;
             obfuscator = null;
             caseSensitivity = null;
             obfuscateNestedElements = obfuscateNestedElementsByDefault;
@@ -581,7 +855,7 @@ public final class XMLObfuscator extends Obfuscator {
 
         @Override
         public XMLObfuscator build() {
-            addLastElement();
+            addLastElementOrAttribute();
 
             return new XMLObfuscator(this);
         }

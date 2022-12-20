@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <root>
-  <text>
+  <text xmlns="urn:test" a="foo" b="bar">
     ***
   </text>
   <cdata>
@@ -11,13 +11,7 @@
   <empty />
   <!-- comment -->
   <element>
-    <text>
+    <t:text xmlns:t="urn:test" t:a="foo" t:b="bar">
       ***
-    </text>
-    <cdata>
-      <![CDATA[
-        ***
-      ]]>
-    </cdata>
-    <empty />
-    <nest
+    </t:text>
+    <cdata

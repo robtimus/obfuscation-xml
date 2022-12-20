@@ -23,12 +23,19 @@ import static com.github.robtimus.obfuscation.Obfuscator.none;
 import static com.github.robtimus.obfuscation.support.CaseSensitivity.CASE_SENSITIVE;
 import static com.github.robtimus.obfuscation.xml.XMLObfuscator.builder;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.params.provider.Arguments.arguments;
@@ -45,6 +52,11 @@ import java.io.StringReader;
 import java.io.StringWriter;
 import java.io.UncheckedIOException;
 import java.io.Writer;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Inherited;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.function.Supplier;
@@ -53,9 +65,12 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import javax.xml.XMLConstants;
 import javax.xml.namespace.QName;
+import javax.xml.stream.XMLInputFactory;
+import javax.xml.stream.XMLStreamException;
 import org.apache.log4j.Appender;
 import org.apache.log4j.Level;
 import org.apache.log4j.spi.LoggingEvent;
+import org.apache.log4j.spi.ThrowableInformation;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -66,10 +81,12 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
+import com.ctc.wstx.exc.WstxLazyException;
 import com.github.robtimus.junit.support.extension.testlogger.Reload4jLoggerContext;
 import com.github.robtimus.junit.support.extension.testlogger.TestLogger;
 import com.github.robtimus.obfuscation.Obfuscator;
 import com.github.robtimus.obfuscation.xml.XMLObfuscator.Builder;
+import com.github.robtimus.obfuscation.xml.XMLObfuscatorTest.ObfuscatorTest.UseSourceTruncation;
 
 @SuppressWarnings("nls")
 @TestInstance(Lifecycle.PER_CLASS)
@@ -84,14 +101,18 @@ class XMLObfuscatorTest {
 
     Arguments[] testEquals() {
         Obfuscator obfuscator = createObfuscator(builder().withElement("test", none()));
+        Obfuscator obfuscatorWithAttributes = createObfuscator(builder().withElement("test", none()).withAttribute("a", none()));
         return new Arguments[] {
                 arguments(obfuscator, obfuscator, true),
                 arguments(obfuscator, null, false),
                 arguments(obfuscator, createObfuscator(builder().withElement("test", none())), true),
                 arguments(obfuscator, createObfuscator(builder().withElement("test", none(), CASE_SENSITIVE)), true),
+                arguments(obfuscator, createObfuscator(builder().withElement(new QName("test"), none())), false),
                 arguments(obfuscator, createObfuscator(builder().withElement("test", fixedLength(3))), false),
                 arguments(obfuscator, createObfuscator(builder().withElement("test", none()).excludeNestedElements()), false),
                 arguments(obfuscator, createObfuscator(builder().withElement("test", none()).withElement(new QName("text"), none())), false),
+                arguments(obfuscator, createObfuscator(builder().withElement("test", none()).withAttribute("test", none())), false),
+                arguments(obfuscator, obfuscatorWithAttributes, false),
                 arguments(obfuscator, createObfuscator(builder().withElement("test", none()).limitTo(Long.MAX_VALUE)), true),
                 arguments(obfuscator, createObfuscator(builder().withElement("test", none()).limitTo(1024)), false),
                 arguments(obfuscator, createObfuscator(builder().withElement("test", none()).limitTo(Long.MAX_VALUE).withTruncatedIndicator(null)),
@@ -100,15 +121,138 @@ class XMLObfuscatorTest {
                 arguments(obfuscator, createObfuscator(builder().withElement("test", none()).withMalformedXMLWarning(null)), false),
                 arguments(obfuscator, createObfuscator(false), false),
                 arguments(obfuscator, "foo", false),
+
+                arguments(obfuscatorWithAttributes, obfuscatorWithAttributes, true),
+                arguments(obfuscatorWithAttributes, obfuscator, false),
+                arguments(obfuscatorWithAttributes, createObfuscator(builder().withElement("test", none()).withAttribute("a", none())), true),
+                arguments(obfuscatorWithAttributes,
+                        createObfuscator(builder().withElement("test", none()).withAttribute("a", none(), CASE_SENSITIVE)), true),
+                arguments(obfuscatorWithAttributes, createObfuscator(builder().withElement("test", none()).withAttribute(new QName("a"), none())),
+                        false),
         };
     }
 
-    @Test
+    @Nested
     @DisplayName("hashCode()")
-    void testHashCode() {
-        Obfuscator obfuscator = createObfuscator();
-        assertEquals(obfuscator.hashCode(), obfuscator.hashCode());
-        assertEquals(obfuscator.hashCode(), createObfuscator().hashCode());
+    class HashCode {
+
+        @Test
+        @DisplayName("without attributes")
+        void testWithoutAttributes() {
+            Obfuscator obfuscator = createObfuscator();
+            assertEquals(obfuscator.hashCode(), obfuscator.hashCode());
+            assertEquals(obfuscator.hashCode(), createObfuscator().hashCode());
+        }
+
+        @Test
+        @DisplayName("with attributes")
+        void testWithAttributes() {
+            Obfuscator obfuscator = createObfuscatorWithAttributes();
+            assertEquals(obfuscator.hashCode(), obfuscator.hashCode());
+            assertEquals(obfuscator.hashCode(), createObfuscatorWithAttributes().hashCode());
+        }
+    }
+
+    @Nested
+    @DisplayName("external access")
+    @TestInstance(Lifecycle.PER_CLASS)
+    class ExternalAccess {
+
+        @TestLogger.ForClass(XMLObfuscator.class)
+        private Reload4jLoggerContext logger;
+
+        private Appender appender;
+
+        @BeforeEach
+        void configureLogger() {
+            appender = mock(Appender.class);
+            logger.setLevel(Level.INFO)
+                    .setAppender(appender)
+                    .useParentAppenders(false);
+        }
+
+        @ParameterizedTest(name = "{1}")
+        @MethodSource("obfuscators")
+        @DisplayName("external DTD not allowed")
+        void testExternalDTDNotAllowed(Obfuscator obfuscator, @SuppressWarnings("unused") String displayName) {
+            String xml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
+                    + "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\"\n"
+                    + "\"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">\n"
+                    + "<html xmlns=\"http://www.w3.org/1999/xhtml\">\n"
+                    + "</html>";
+
+            String obfuscated = obfuscator.obfuscateText(xml).toString();
+            assertThat(obfuscated, endsWith(Messages.XMLObfuscator.malformedXML.text()));
+
+            ArgumentCaptor<LoggingEvent> loggingEvents = ArgumentCaptor.forClass(LoggingEvent.class);
+
+            verify(appender, atLeast(1)).doAppend(loggingEvents.capture());
+
+            List<LoggingEvent> warningEvents = loggingEvents.getAllValues().stream()
+                    .filter(event -> event.getLevel() == Level.WARN)
+                    .collect(Collectors.toList());
+
+            assertFalse(warningEvents.isEmpty());
+
+            LoggingEvent warningEvent = warningEvents.get(warningEvents.size() - 1);
+
+            assertEquals(Messages.XMLObfuscator.malformedXML.warning(), warningEvent.getRenderedMessage());
+
+            ThrowableInformation throwableInformation = warningEvent.getThrowableInformation();
+            assertNotNull(throwableInformation);
+
+            Throwable throwable = throwableInformation.getThrowable();
+            assertInstanceOf(XMLStreamException.class, throwable);
+            assertEquals(Messages.XMLObfuscator.externalDTDsNotSupported("http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"),
+                    throwable.getMessage());
+        }
+
+        @ParameterizedTest(name = "{1}")
+        @MethodSource("obfuscators")
+        @DisplayName("external entity not allowed")
+        void testExternalEntityNotAllowed(Obfuscator obfuscator, @SuppressWarnings("unused") String displayName) {
+            String xml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
+                    + "<!DOCTYPE html [\n"
+                    + "  <!ENTITY name SYSTEM \"irrelevant\">\n"
+                    + "]>\n"
+                    + "<html xmlns=\"http://www.w3.org/1999/xhtml\">\n"
+                    + "&name;\n"
+                    + "</html>";
+
+            String obfuscated = obfuscator.obfuscateText(xml).toString();
+            assertThat(obfuscated, endsWith(Messages.XMLObfuscator.malformedXML.text()));
+
+            ArgumentCaptor<LoggingEvent> loggingEvents = ArgumentCaptor.forClass(LoggingEvent.class);
+
+            verify(appender, atLeast(1)).doAppend(loggingEvents.capture());
+
+            List<LoggingEvent> warningEvents = loggingEvents.getAllValues().stream()
+                    .filter(event -> event.getLevel() == Level.WARN)
+                    .collect(Collectors.toList());
+
+            assertFalse(warningEvents.isEmpty());
+
+            LoggingEvent warningEvent = warningEvents.get(warningEvents.size() - 1);
+
+            assertEquals(Messages.XMLObfuscator.malformedXML.warning(), warningEvent.getRenderedMessage());
+
+            ThrowableInformation throwableInformation = warningEvent.getThrowableInformation();
+            assertNotNull(throwableInformation);
+
+            Throwable throwable = throwableInformation.getThrowable();
+            assertThat(throwable, anyOf(instanceOf(XMLStreamException.class), instanceOf(WstxLazyException.class)));
+
+            String expectedPrefix = String.format("Encountered a reference to external entity \"%s\", but stream reader has feature \"%s\" disabled",
+                    "name", XMLInputFactory.IS_SUPPORTING_EXTERNAL_ENTITIES);
+            assertThat(throwable.getMessage(), containsString(expectedPrefix));
+        }
+
+        private Arguments[] obfuscators() {
+            return new Arguments[] {
+                    arguments(createObfuscator(), "default"),
+                    arguments(createObfuscatorWithAttributes(), "with attributes"),
+            };
+        }
     }
 
     @Nested
@@ -136,6 +280,29 @@ class XMLObfuscatorTest {
             assertDoesNotThrow(() -> builder.withElement(element, obfuscator));
             IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> builder.withElement(element, obfuscator));
             assertEquals(Messages.XMLObfuscator.duplicateElement(element), exception.getMessage());
+        }
+
+        @Test
+        @DisplayName("withAttribute(QName, Obfuscator) with the same local name but different namespaces")
+        void testQualifiedAttributeNameWithSameLocalName() {
+            String localName = "test";
+            Obfuscator obfuscator = fixedLength(3);
+
+            Builder builder = builder();
+            assertDoesNotThrow(() -> builder.withAttribute(new QName(localName), obfuscator));
+            assertDoesNotThrow(() -> builder.withAttribute(new QName(XMLConstants.XML_NS_URI, localName), obfuscator));
+        }
+
+        @Test
+        @DisplayName("withAttribute(QName, Obfuscator) with duplicate name")
+        void testDuplicateQualifiedAttributeName() {
+            QName attribute = new QName("test");
+            Obfuscator obfuscator = fixedLength(3);
+
+            Builder builder = builder();
+            assertDoesNotThrow(() -> builder.withAttribute(attribute, obfuscator));
+            IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> builder.withAttribute(attribute, obfuscator));
+            assertEquals(Messages.XMLObfuscator.duplicateAttribute(attribute), exception.getMessage());
         }
 
         @Nested
@@ -303,6 +470,196 @@ class XMLObfuscatorTest {
         }
     }
 
+    @Nested
+    @DisplayName("with attributes")
+    @UseSourceTruncation(false)
+    class WithAttributes {
+
+        @Nested
+        @DisplayName("valid XML")
+        @TestInstance(Lifecycle.PER_CLASS)
+        class ValidXML {
+
+            @Nested
+            @DisplayName("caseSensitiveByDefault()")
+            @TestInstance(Lifecycle.PER_CLASS)
+            class ObfuscatingCaseSensitively extends ObfuscatorTest {
+
+                ObfuscatingCaseSensitively() {
+                    super("XMLObfuscator.input.valid.xml", "XMLObfuscator.expected.valid.with-attributes.all",
+                            () -> createObfuscatorWithAttributes(builder().caseSensitiveByDefault()));
+                }
+            }
+
+            @Nested
+            @DisplayName("caseInsensitiveByDefault()")
+            @TestInstance(Lifecycle.PER_CLASS)
+            class ObfuscatingCaseInsensitively extends ObfuscatorTest {
+
+                ObfuscatingCaseInsensitively() {
+                    super("XMLObfuscator.input.valid.xml", "XMLObfuscator.expected.valid.with-attributes.all",
+                            () -> createObfuscatorCaseInsensitiveWithAttributes(builder().caseInsensitiveByDefault()));
+                }
+            }
+
+            @Nested
+            @DisplayName("using qualified names")
+            @TestInstance(Lifecycle.PER_CLASS)
+            class ObfuscatingQualified extends ObfuscatorTest {
+
+                ObfuscatingQualified() {
+                    super("XMLObfuscator.input.valid.xml", "XMLObfuscator.expected.valid.with-attributes.qualified.all",
+                            () -> createObfuscatorQualifiedNamesWithAttributes(builder()));
+                }
+            }
+
+            @Nested
+            @DisplayName("obfuscating all (default)")
+            class ObfuscatingAll extends ObfuscatorTest {
+
+                ObfuscatingAll() {
+                    super("XMLObfuscator.input.valid.xml", "XMLObfuscator.expected.valid.with-attributes.all",
+                            () -> createObfuscatorWithAttributes(builder()));
+                }
+            }
+
+            @Nested
+            @DisplayName("obfuscating all, overriding text only by default")
+            @TestInstance(Lifecycle.PER_CLASS)
+            class ObfuscatingAllOverridden extends ObfuscatorTest {
+
+                ObfuscatingAllOverridden() {
+                    super("XMLObfuscator.input.valid.xml", "XMLObfuscator.expected.valid.with-attributes.all",
+                            () -> createObfuscatorObfuscatingAllWithAttributes(builder().textOnlyByDefault()));
+                }
+            }
+
+            @Nested
+            @DisplayName("obfuscating text only by default")
+            @TestInstance(Lifecycle.PER_CLASS)
+            class ObfuscatingText extends ObfuscatorTest {
+
+                ObfuscatingText() {
+                    super("XMLObfuscator.input.valid.xml", "XMLObfuscator.expected.valid.with-attributes.text",
+                            () -> createObfuscatorWithAttributes(builder().textOnlyByDefault()));
+                }
+            }
+
+            @Nested
+            @DisplayName("obfuscating text only, overriding all by default")
+            @TestInstance(Lifecycle.PER_CLASS)
+            class ObfuscatingTextOverridden extends ObfuscatorTest {
+
+                ObfuscatingTextOverridden() {
+                    super("XMLObfuscator.input.valid.xml", "XMLObfuscator.expected.valid.with-attributes.text",
+                            () -> createObfuscatorObfuscatingTextOnlyWithAttributes(builder().allByDefault()));
+                }
+            }
+
+            @Nested
+            @DisplayName("limited")
+            @TestInstance(Lifecycle.PER_CLASS)
+            class Limited {
+
+                @Nested
+                @DisplayName("with truncated indicator")
+                @TestInstance(Lifecycle.PER_CLASS)
+                class WithTruncatedIndicator extends ObfuscatorTest {
+
+                    WithTruncatedIndicator() {
+                        super("XMLObfuscator.input.valid.xml", "XMLObfuscator.expected.valid.with-attributes.limited.with-indicator",
+                                () -> createObfuscatorWithAttributes(builder().limitTo(289)));
+                    }
+                }
+
+                @Nested
+                @DisplayName("without truncated indicator")
+                @TestInstance(Lifecycle.PER_CLASS)
+                class WithoutTruncatedIndicator extends ObfuscatorTest {
+
+                    WithoutTruncatedIndicator() {
+                        super("XMLObfuscator.input.valid.xml", "XMLObfuscator.expected.valid.with-attributes.limited.without-indicator",
+                                () -> createObfuscatorWithAttributes(builder().limitTo(289).withTruncatedIndicator(null)));
+                    }
+                }
+            }
+        }
+
+        @Nested
+        @DisplayName("invalid XML")
+        @TestInstance(Lifecycle.PER_CLASS)
+        class InvalidXML extends ObfuscatorTest {
+
+            InvalidXML() {
+                super("XMLObfuscator.input.invalid", "XMLObfuscator.expected.invalid.with-attributes", () -> createObfuscatorWithAttributes());
+            }
+        }
+
+        @Nested
+        @DisplayName("truncated XML")
+        @TestInstance(Lifecycle.PER_CLASS)
+        class TruncatedXML {
+
+            @Nested
+            @DisplayName("with warning")
+            class WithWarning extends TruncatedXMLTest {
+
+                WithWarning() {
+                    super("XMLObfuscator.expected.truncated.with-attributes", true);
+                }
+            }
+
+            @Nested
+            @DisplayName("without warning")
+            class WithoutWarning extends TruncatedXMLTest {
+
+                WithoutWarning() {
+                    super("XMLObfuscator.expected.truncated.with-attributes.no-warning", false);
+                }
+            }
+
+            private class TruncatedXMLTest extends ObfuscatorTest {
+
+                TruncatedXMLTest(String expectedResource, boolean includeWarning) {
+                    super("XMLObfuscator.input.truncated", expectedResource, () -> createObfuscatorWithAttributes(includeWarning));
+                }
+            }
+        }
+    }
+
+    @Nested
+    @DisplayName("all events")
+    @TestInstance(Lifecycle.PER_CLASS)
+    class AllEvents extends ObfuscatorTest {
+
+        AllEvents() {
+            super("XMLObfuscator.input.valid.all-events.xml", "XMLObfuscator.expected.valid.all-events.all", () -> createObfuscator());
+        }
+
+        @Nested
+        @DisplayName("with attributes")
+        @TestInstance(Lifecycle.PER_CLASS)
+        @UseSourceTruncation(false)
+        class WithAttributes extends ObfuscatorTest {
+
+            WithAttributes() {
+                super("XMLObfuscator.input.valid.all-events.xml", "XMLObfuscator.expected.valid.all-events.with-attributes.all",
+                        () -> createObfuscatorWithAttributes());
+            }
+
+            @Nested
+            @DisplayName("limited")
+            @TestInstance(Lifecycle.PER_CLASS)
+            class Limited extends ObfuscatorTest {
+
+                Limited() {
+                    super("XMLObfuscator.input.valid.all-events.xml", "XMLObfuscator.expected.valid.all-events.with-attributes.limited",
+                            () -> createObfuscatorWithAttributes(builder().limitTo(30).withTruncatedIndicator(null)));
+                }
+            }
+        }
+    }
+
     abstract static class ObfuscatorTest {
 
         private final String input;
@@ -310,6 +667,7 @@ class XMLObfuscatorTest {
         private final String inputWithLargeValues;
         private final String expectedWithLargeValues;
         private final Supplier<Obfuscator> obfuscatorSupplier;
+        private final boolean usesSourceTruncation;
 
         @TestLogger.ForClass(XMLObfuscator.class)
         private Reload4jLoggerContext logger;
@@ -322,10 +680,30 @@ class XMLObfuscatorTest {
             this.obfuscatorSupplier = obfuscatorSupplier;
 
             String largeValue = createLargeValue();
-            inputWithLargeValues = input.replace("text&quot;", largeValue);
+            inputWithLargeValues = input
+                    .replace("text&quot;", largeValue)
+                    .replace("text\"", largeValue)
+                    .replace("Longer data with embedded <xml>", largeValue + "<xml>")
+                    ;
             expectedWithLargeValues = expected
                     .replace("text&quot;", largeValue)
+                    .replace("text\"", largeValue)
+                    .replace("Longer data with embedded <xml>", largeValue + "<xml>")
                     .replace("(total: " + input.length(), "(total: " + inputWithLargeValues.length());
+
+            this.usesSourceTruncation = usesSourceTruncation();
+        }
+
+        private boolean usesSourceTruncation() {
+            Class<?> iterator = getClass();
+            while (iterator != null) {
+                UseSourceTruncation annotation = iterator.getAnnotation(UseSourceTruncation.class);
+                if (annotation != null) {
+                    return annotation.value();
+                }
+                iterator = iterator.getEnclosingClass();
+            }
+            return true;
         }
 
         @BeforeEach
@@ -426,7 +804,11 @@ class XMLObfuscatorTest {
             verify(reader, never()).close();
             verify(destination, never()).close();
 
-            assertTruncationLogging(appender);
+            if (usesSourceTruncation) {
+                assertTruncationLogging(appender);
+            } else {
+                assertNoTruncationLogging(appender);
+            }
         }
 
         @Test
@@ -543,6 +925,14 @@ class XMLObfuscatorTest {
             assertTrue(matcher.find());
             return Integer.parseInt(matcher.group(1));
         }
+
+        @Inherited
+        @Target(ElementType.TYPE)
+        @Retention(RetentionPolicy.RUNTIME)
+        @interface UseSourceTruncation {
+
+            boolean value();
+        }
     }
 
     private static Obfuscator createObfuscator() {
@@ -584,7 +974,7 @@ class XMLObfuscatorTest {
         Obfuscator obfuscator = fixedLength(3);
         Obfuscator unusedObfuscator = fixedValue("not used");
         return builder
-                .withElement(new QName("text"), obfuscator)
+                .withElement(new QName("urn:test", "text"), obfuscator)
                 .withElement(new QName("cdata"), obfuscator)
                 .withElement(new QName("empty"), obfuscator)
                 .withElement(new QName("element"), obfuscator)
@@ -624,6 +1014,52 @@ class XMLObfuscatorTest {
                 .withElement("element", obfuscator).textOnly()
                 .withElement("notObfuscated", none()).textOnly()
                 .build();
+    }
+
+    private static Obfuscator createObfuscatorWithAttributes() {
+        return builder()
+                .transform(XMLObfuscatorTest::createObfuscatorWithAttributes);
+    }
+
+    private static Obfuscator createObfuscatorWithAttributes(boolean includeWarning) {
+        Builder builder = builder();
+        if (!includeWarning) {
+            builder = builder.withMalformedXMLWarning(null);
+        }
+        return builder.transform(XMLObfuscatorTest::createObfuscatorWithAttributes);
+    }
+
+    private static XMLObfuscator createObfuscatorWithAttributes(Builder builder) {
+        Obfuscator obfuscator = fixedLength(3);
+        return createObfuscator(builder
+                .withAttribute("a", obfuscator));
+    }
+
+    private static Obfuscator createObfuscatorCaseInsensitiveWithAttributes(Builder builder) {
+        Obfuscator obfuscator = fixedLength(3);
+        return createObfuscatorCaseInsensitive(builder
+                .withAttribute("a", obfuscator));
+    }
+
+    private static XMLObfuscator createObfuscatorQualifiedNamesWithAttributes(Builder builder) {
+        Obfuscator obfuscator = fixedLength(3);
+        Obfuscator unusedObfuscator = fixedValue("not used");
+        return createObfuscatorQualifiedNames(builder
+                .withAttribute(new QName("urn:test", "a"), obfuscator)
+                .withAttribute(new QName(XMLConstants.XML_NS_URI, "a"), unusedObfuscator)
+                .withAttribute("a", unusedObfuscator));
+    }
+
+    private static Obfuscator createObfuscatorObfuscatingAllWithAttributes(Builder builder) {
+        Obfuscator obfuscator = fixedLength(3);
+        return createObfuscatorObfuscatingAll(builder
+                .withAttribute("a", obfuscator));
+    }
+
+    private static Obfuscator createObfuscatorObfuscatingTextOnlyWithAttributes(Builder builder) {
+        Obfuscator obfuscator = fixedLength(3);
+        return createObfuscatorObfuscatingTextOnly(builder
+                .withAttribute("a", obfuscator));
     }
 
     static String readResource(String name) {

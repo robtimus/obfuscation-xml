@@ -1,33 +1,58 @@
 <?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE root [
+  <!ELEMENT root ANY>
+  <!ELEMENT text (#PCDATA)>
+  <!ATTLIST text xmlns CDATA #FIXED "urn:test">
+  <!ATTLIST text a CDATA #REQUIRED>
+  <!ATTLIST text b CDATA #REQUIRED>
+  <!ELEMENT t:text ANY>
+  <!ATTLIST t:text xmlns:t CDATA #FIXED "urn:test">
+  <!ATTLIST t:text t:a CDATA #REQUIRED>
+  <!ATTLIST t:text t:b CDATA #REQUIRED>
+  <!ELEMENT cdata (#PCDATA)>
+  <!ELEMENT empty EMPTY>
+  <!ELEMENT element ANY>
+  <!ELEMENT nested ANY>
+  <!ELEMENT elem1 (#PCDATA)>
+  <!ELEMENT elem2 (#PCDATA)>
+  <!ELEMENT notMatchedText (#PCDATA)>
+  <!ELEMENT notMatchedCdata (#PCDATA)>
+  <!ELEMENT notMatchedEmpty EMPTY>
+  <!ELEMENT notMatchedElement ANY>
+  <!ELEMENT notObfuscated ANY>
+  <!ENTITY entity "Entity Value">
+]>
+<?xml-stylesheet type="text/xsl" href="style.xsl"?>
+<?test?>
 <root>
   <text xmlns="urn:test" a="foo" b="bar">
-    text&quot;
+    ***
   </text>
   <cdata>
     <![CDATA[
-      Longer data with embedded <xml>
+      ***
     ]]>
   </cdata>
   <empty />
   <!-- comment -->
   <element>
     <t:text xmlns:t="urn:test" t:a="foo" t:b="bar">
-      text&quot;
+      ***
     </t:text>
     <cdata>
       <![CDATA[
-        Longer data with embedded <xml>
+        ***
       ]]>
     </cdata>
     <empty />
     <nested>
-      <elem1>1</elem1>
+      <elem1>***</elem1>
       <!-- comment -->
-      <elem2>2</elem2>
+      <elem2>***</elem2>
     </nested>
   </element>
   <notMatchedText>
-    text&quot;
+    text&quot;&entity;
   </notMatchedText>
   <notMatchedCdata>
     <![CDATA[
@@ -37,7 +62,7 @@
   <notMatchedEmpty />
   <notMatchedElement>
     <notMatchedText>
-      text&quot;
+      text&quot;&entity;
     </notMatchedText>
     <notMatchedCdata>
       <![CDATA[
@@ -48,33 +73,33 @@
   </notMatchedElement>
   <nested>
     <text xmlns="urn:test" a="foo" b="bar">
-      text&quot;
+      ***
     </text>
     <cdata>
       <![CDATA[
-        Longer data with embedded <xml>
+        ***
       ]]>
     </cdata>
     <empty />
     <!-- comment -->
     <element>
       <t:text xmlns:t="urn:test" t:a="foo" t:b="bar">
-        text&quot;
+        ***
       </t:text>
       <cdata>
         <![CDATA[
-          Longer data with embedded <xml>
+          ***
         ]]>
       </cdata>
       <empty />
       <nested>
-        <elem1>1</elem1>
+        <elem1>***</elem1>
         <!-- comment -->
-        <elem2>2</elem2>
+        <elem2>***</elem2>
       </nested>
     </element>
     <notMatchedText>
-      text&quot;
+      text&quot;&entity;
     </notMatchedText>
     <notMatchedCdata>
       <![CDATA[
@@ -84,7 +109,7 @@
     <notMatchedEmpty />
     <notMatchedElement>
         <notMatchedText>
-        text&quot;
+        text&quot;&entity;
       </notMatchedText>
       <notMatchedCdata>
         <![CDATA[
@@ -96,7 +121,7 @@
   </nested>
   <notObfuscated>
     <text xmlns="urn:test" a="foo" b="bar">
-      text&quot;
+      text&quot;&entity;
     </text>
     <cdata>
       <![CDATA[
@@ -107,7 +132,7 @@
     <!-- comment -->
     <element>
       <t:text xmlns:t="urn:test" t:a="foo" t:b="bar">
-        text&quot;
+        text&quot;&entity;
       </t:text>
       <cdata>
         <![CDATA[
@@ -122,7 +147,7 @@
       </nested>
     </element>
     <notMatchedText>
-      text&quot;
+      text&quot;&entity;
     </notMatchedText>
     <notMatchedCdata>
       <![CDATA[
@@ -132,7 +157,7 @@
     <notMatchedEmpty />
     <notMatchedElement>
       <notMatchedText>
-        text&quot;
+        text&quot;&entity;
       </notMatchedText>
       <notMatchedCdata>
         <![CDATA[

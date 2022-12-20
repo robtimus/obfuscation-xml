@@ -21,6 +21,16 @@ By default, if an obfuscator is configured for an element, it will be used to ob
                     .includeNestedElements() // override the default setting
             .build();
 
+## Obfuscation of attributes
+
+If needed, the values of attributes can be obfuscated as well as text. For example:
+
+    Obfuscator obfuscator = XMLObfuscator.builder()
+            .withAttribute("password", Obfuscator.fixedLength(3))
+            .build();
+
+Note that if attributes need to be obfuscated, XML obfuscators perform obfuscating by generating new, obfuscated XML documents. The resulting obfuscated XML documents may slightly differ from the original.
+
 ## Handling malformed XML
 
 If malformed XML is encountered, obfuscation aborts. It will add a message to the result indicating that obfuscation was aborted. This message can be changed or turned off when creating XML obfuscators:

@@ -1,5 +1,5 @@
 /*
- * ObfuscatingXMLParser.java
+ * IndexedObfuscatingXMLParser.java
  * Copyright 2020 Rob Spoor
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -29,7 +29,7 @@ import org.codehaus.stax2.LocationInfo;
 import com.github.robtimus.obfuscation.Obfuscator;
 
 // Do not implement XMLStreamParser, the mechanism is too different
-final class ObfuscatingXMLParser {
+final class IndexedObfuscatingXMLParser {
 
     private static final String CDATA_START = "<![CDATA["; //$NON-NLS-1$
     private static final String CDATA_END = "]]>"; //$NON-NLS-1$
@@ -50,7 +50,7 @@ final class ObfuscatingXMLParser {
 
     private final Deque<ObfuscatedElement> currentElements = new ArrayDeque<>();
 
-    ObfuscatingXMLParser(XMLStreamReader xmlStreamReader, Source source, int start, int end, Appendable destination,
+    IndexedObfuscatingXMLParser(XMLStreamReader xmlStreamReader, Source source, int start, int end, Appendable destination,
             Map<String, ElementConfig> elements, Map<QName, ElementConfig> qualifiedElements) {
 
         this.xmlStreamReader = xmlStreamReader;
@@ -105,7 +105,7 @@ final class ObfuscatingXMLParser {
         ObfuscatedElement currentElement = currentElements.peekLast();
         if (currentElement == null || !currentElement.config.obfuscateNestedElements) {
             // either not obfuscating any element, or the element should not obfuscate nested elements - check the element itself
-            ElementConfig config = obfuscatorForCurrentElement();
+            ElementConfig config = configForCurrentElement();
             if (config != null) {
                 currentElement = new ObfuscatedElement(config);
                 currentElements.addLast(currentElement);
@@ -121,7 +121,7 @@ final class ObfuscatingXMLParser {
         appendUnobfuscated(startIndex, endIndex);
     }
 
-    private ElementConfig obfuscatorForCurrentElement() {
+    private ElementConfig configForCurrentElement() {
         ElementConfig config = null;
         if (!qualifiedElements.isEmpty()) {
             QName elementName = xmlStreamReader.getName();

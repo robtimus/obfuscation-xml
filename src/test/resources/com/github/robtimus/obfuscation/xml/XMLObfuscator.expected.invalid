@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <root>
-  <text>
+  <text xmlns="urn:test" a="foo" b="bar">
     ***
   <obfuscation aborted due to malformed XML>

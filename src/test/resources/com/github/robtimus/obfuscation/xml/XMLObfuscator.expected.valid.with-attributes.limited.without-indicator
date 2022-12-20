@@ -1,0 +1,17 @@
+<?xml version='1.0' encoding='UTF-8'?><root>
+  <text xmlns="urn:test" a="***" b="bar">
+    ***
+  </text>
+  <cdata>
+    <![CDATA[
+      ***
+    ]]>
+  </cdata>
+  <empty/>
+  <!-- comment -->
+  <element>
+    <t:text xmlns:t="urn:test" t:a="***" t:b="bar">
+      ***
+    </t:text>
+    <cdata>
+ 
