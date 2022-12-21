@@ -21,6 +21,7 @@ import static com.github.robtimus.obfuscation.support.ObfuscatorUtils.appendAtMo
 import static com.github.robtimus.obfuscation.support.ObfuscatorUtils.checkStartAndEnd;
 import static com.github.robtimus.obfuscation.support.ObfuscatorUtils.copyTo;
 import static com.github.robtimus.obfuscation.support.ObfuscatorUtils.counting;
+import static com.github.robtimus.obfuscation.support.ObfuscatorUtils.discardAll;
 import static com.github.robtimus.obfuscation.support.ObfuscatorUtils.reader;
 import static com.github.robtimus.obfuscation.support.ObfuscatorUtils.writer;
 import java.io.IOException;
@@ -167,7 +168,8 @@ public final class XMLObfuscator extends Obfuscator {
         @SuppressWarnings("resource")
         Reader reader = reader(s, start, end);
         LimitAppendable appendable = appendAtMost(destination, limit);
-        obfuscateTextWriting(reader, appendable);
+        // No need to consume the reader, as it's backed by the CharSequence
+        obfuscateTextWriting(reader, appendable, false);
         if (appendable.limitExceeded() && truncatedIndicator != null) {
             destination.append(String.format(truncatedIndicator, end - start));
         }
@@ -177,23 +179,26 @@ public final class XMLObfuscator extends Obfuscator {
         @SuppressWarnings("resource")
         CountingReader countingReader = counting(input);
         LimitAppendable appendable = appendAtMost(destination, limit);
-        obfuscateTextWriting(countingReader, appendable);
+        // Consume the reader so countingReader.count() will give the correct result
+        obfuscateTextWriting(countingReader, appendable, true);
         if (appendable.limitExceeded() && truncatedIndicator != null) {
             destination.append(String.format(truncatedIndicator, countingReader.count()));
         }
     }
 
-    private void obfuscateTextWriting(Reader reader, LimitAppendable destination) throws IOException {
-        WritingObfuscatingXMLParser parser = createWritingParser(reader, destination);
+    private void obfuscateTextWriting(Reader reader, LimitAppendable destination, boolean consumeReader) throws IOException {
         try {
+            WritingObfuscatingXMLParser parser = createWritingParser(reader, destination);
             parser.initialize();
             try {
-                // Cannot abort early as that could lead to the XML document being modified, e.g. automatically closed
-                while (parser.hasNext()) {
+                while (parser.hasNext() && !destination.limitExceeded()) {
                     parser.processNext();
                 }
             } finally {
                 parser.flush();
+            }
+            if (consumeReader) {
+                discardAll(reader);
             }
         } catch (XMLStreamException | WstxLazyException e) {
             LOGGER.warn(Messages.XMLObfuscator.malformedXML.warning(), e);
@@ -206,8 +211,7 @@ public final class XMLObfuscator extends Obfuscator {
     private WritingObfuscatingXMLParser createWritingParser(Reader input, LimitAppendable destination) {
         XMLStreamReader xmlStreamReader = createXmlStreamReader(input);
         XMLStreamWriter xmlStreamWriter = createXmlStreamWriter(destination);
-        return new WritingObfuscatingXMLParser(xmlStreamReader, xmlStreamWriter, destination,
-                elements, qualifiedElements, attributes, qualifiedAttributes);
+        return new WritingObfuscatingXMLParser(xmlStreamReader, xmlStreamWriter, elements, qualifiedElements, attributes, qualifiedAttributes);
     }
 
     private void obfuscateTextIndexed(CharSequence s, int start, int end, Appendable destination) throws IOException {

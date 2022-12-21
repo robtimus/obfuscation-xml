@@ -29,14 +29,12 @@ import javax.xml.stream.XMLStreamReader;
 import javax.xml.stream.XMLStreamWriter;
 import org.codehaus.stax2.DTDInfo;
 import org.codehaus.stax2.XMLStreamReader2;
-import com.github.robtimus.obfuscation.support.LimitAppendable;
 
 //Do not implement XMLStreamParser, the mechanism is too different
 final class WritingObfuscatingXMLParser {
 
     private final XMLStreamReader xmlStreamReader;
     private final XMLStreamWriter xmlStreamWriter;
-    private final LimitAppendable destination;
 
     private final Map<String, ElementConfig> elements;
     private final Map<QName, ElementConfig> qualifiedElements;
@@ -48,13 +46,12 @@ final class WritingObfuscatingXMLParser {
     private TextType currentTextType = TextType.NONE;
     private boolean obfuscateCurrentText;
 
-    WritingObfuscatingXMLParser(XMLStreamReader xmlStreamReader, XMLStreamWriter xmlStreamWriter, LimitAppendable destination,
+    WritingObfuscatingXMLParser(XMLStreamReader xmlStreamReader, XMLStreamWriter xmlStreamWriter,
             Map<String, ElementConfig> elements, Map<QName, ElementConfig> qualifiedElements,
             Map<String, AttributeConfig> attributes, Map<QName, AttributeConfig> qualifiedAttributes) {
 
         this.xmlStreamReader = xmlStreamReader;
         this.xmlStreamWriter = xmlStreamWriter;
-        this.destination = destination;
         this.elements = elements;
         this.qualifiedElements = qualifiedElements;
         this.attributes = attributes;
@@ -145,9 +142,7 @@ final class WritingObfuscatingXMLParser {
 
         xmlStreamWriter.writeStartElement(name.getPrefix(), name.getLocalPart(), name.getNamespaceURI());
 
-        if (!destination.limitReached()) {
-            writeAttributes();
-        }
+        writeAttributes();
     }
 
     private void writeAttributes() throws XMLStreamException {
@@ -196,10 +191,6 @@ final class WritingObfuscatingXMLParser {
     }
 
     private void processingInstruction() throws XMLStreamException {
-        if (destination.limitReached()) {
-            // no need to append anything other than tags
-            return;
-        }
         String target = xmlStreamReader.getPITarget();
         String data = xmlStreamReader.getPIData();
         if (data == null || data.isEmpty()) {
@@ -210,10 +201,6 @@ final class WritingObfuscatingXMLParser {
     }
 
     private void characters() throws XMLStreamException {
-        if (destination.limitReached()) {
-            // no need to append anything other than tags
-            return;
-        }
         if (currentTextType != TextType.CHARACTERS) {
             // including CDATA -> CHARACTERS
             finishLatestText();
@@ -243,19 +230,11 @@ final class WritingObfuscatingXMLParser {
     }
 
     private void comment() throws XMLStreamException {
-        if (destination.limitReached()) {
-            // no need to append anything other than tags
-            return;
-        }
         String comment = xmlStreamReader.getText();
         xmlStreamWriter.writeComment(comment);
     }
 
     private void space() throws XMLStreamException {
-        if (destination.limitReached()) {
-            // no need to append anything other than tags
-            return;
-        }
         String space = xmlStreamReader.getText();
         xmlStreamWriter.writeCharacters(space);
     }
@@ -272,10 +251,6 @@ final class WritingObfuscatingXMLParser {
     }
 
     private void dtd() throws XMLStreamException {
-        if (destination.limitReached()) {
-            // no need to append anything other than tags
-            return;
-        }
         // Woodstox returns the internal subset, but expects a full DTD - build it ourselves
         String dtd = getDTD((XMLStreamReader2) xmlStreamReader);
         xmlStreamWriter.writeDTD(dtd);
@@ -308,10 +283,6 @@ final class WritingObfuscatingXMLParser {
     }
 
     private void cdata() throws XMLStreamException {
-        if (destination.limitReached()) {
-            // no need to append anything other than tags
-            return;
-        }
         if (currentTextType != TextType.CDATA) {
             // including CHARACTERS -> CDATA
             finishLatestText();
