@@ -434,18 +434,18 @@ public final class XMLObfuscator extends Obfuscator {
         AttributeConfigurer withAttribute(QName attribute, Obfuscator obfuscator);
 
         /**
-         * Sets the default case sensitivity for new elements to {@link CaseSensitivity#CASE_SENSITIVE}. This is the default setting.
+         * Sets the default case sensitivity for new elements and attributes to {@link CaseSensitivity#CASE_SENSITIVE}. This is the default setting.
          * <p>
-         * Note that this will not change the case sensitivity of any element that was already added.
+         * Note that this will not change the case sensitivity of any element or attribute that was already added.
          *
          * @return This object.
          */
         Builder caseSensitiveByDefault();
 
         /**
-         * Sets the default case sensitivity for new elements to {@link CaseSensitivity#CASE_INSENSITIVE}.
+         * Sets the default case sensitivity for new elements and attributes to {@link CaseSensitivity#CASE_INSENSITIVE}.
          * <p>
-         * Note that this will not change the case sensitivity of any element that was already added.
+         * Note that this will not change the case sensitivity of any element or attribute that was already added.
          *
          * @return This object.
          */
