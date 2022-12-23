@@ -27,7 +27,7 @@
   </parent>
 
   <artifactId>obfuscation-xml</artifactId>
-  <version>1.2-SNAPSHOT</version>
+  <version>1.2</version>
   <packaging>jar</packaging>
 
   <name>obfuscation-xml</name>
@@ -52,7 +52,7 @@
   <scm>
     <connection>scm:git:git@github.com:robtimus/obfuscation-xml.git</connection>
     <developerConnection>scm:git:git@github.com:robtimus/obfuscation-xml.git</developerConnection>
-    <tag>HEAD</tag>
+    <tag>1.2</tag>
     <url>https://github.com/robtimus/obfuscation-xml</url>
   </scm>
 
