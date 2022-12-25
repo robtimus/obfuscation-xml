@@ -121,6 +121,7 @@ class XMLObfuscatorTest {
                         false),
                 arguments(obfuscator, builder().build(), false),
                 arguments(obfuscator, createObfuscator(builder().withElement("test", none()).withMalformedXMLWarning(null)), false),
+                arguments(obfuscator, createObfuscator(builder().withElement("test", none()).generateXML()), false),
                 arguments(obfuscator, createObfuscator(false), false),
                 arguments(obfuscator, "foo", false),
 

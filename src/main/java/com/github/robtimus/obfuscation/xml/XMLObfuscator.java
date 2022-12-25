@@ -89,7 +89,7 @@ public final class XMLObfuscator extends Obfuscator {
     private final long limit;
     private final String truncatedIndicator;
 
-    private final boolean useXmlWriter;
+    private final boolean generateXML;
 
     private XMLObfuscator(ObfuscatorBuilder builder) {
         elements = builder.elements();
@@ -103,7 +103,7 @@ public final class XMLObfuscator extends Obfuscator {
         limit = builder.limit;
         truncatedIndicator = builder.truncatedIndicator;
 
-        useXmlWriter = builder.useXmlWriter;
+        generateXML = builder.generateXML;
     }
 
     static XMLInputFactory createInputFactory() {
@@ -149,7 +149,7 @@ public final class XMLObfuscator extends Obfuscator {
     @Override
     public void obfuscateText(CharSequence s, int start, int end, Appendable destination) throws IOException {
         checkStartAndEnd(s, start, end);
-        if (useXmlWriter) {
+        if (generateXML) {
             obfuscateTextWriting(s, start, end, destination);
         } else {
             obfuscateTextIndexed(s, start, end, destination);
@@ -158,7 +158,7 @@ public final class XMLObfuscator extends Obfuscator {
 
     @Override
     public void obfuscateText(Reader input, Appendable destination) throws IOException {
-        if (useXmlWriter) {
+        if (generateXML) {
             obfuscateTextWriting(input, destination);
         } else {
             obfuscateTextIndexed(input, destination);
@@ -296,8 +296,8 @@ public final class XMLObfuscator extends Obfuscator {
                 && qualifiedAttributes.equals(other.qualifiedAttributes)
                 && Objects.equals(malformedXMLWarning, other.malformedXMLWarning)
                 && limit == other.limit
-                && Objects.equals(truncatedIndicator, other.truncatedIndicator);
-        // useXmlWriter is calculated, not included
+                && Objects.equals(truncatedIndicator, other.truncatedIndicator)
+                && generateXML == other.generateXML;
     }
 
     @Override
@@ -311,7 +311,7 @@ public final class XMLObfuscator extends Obfuscator {
         result = prime * result + Objects.hashCode(malformedXMLWarning);
         result = prime * result + Long.hashCode(limit);
         result = prime * result + Objects.hashCode(truncatedIndicator);
-        // useXmlWriter is calculated, not included
+        result = prime * result + Boolean.hashCode(generateXML);
         return result;
     }
 
@@ -326,7 +326,7 @@ public final class XMLObfuscator extends Obfuscator {
                 + ",malformedXMLWarning=" + malformedXMLWarning
                 + ",limit=" + limit
                 + ",truncatedIndicator=" + truncatedIndicator
-                // useXmlWriter is calculated, not included
+                + ",generateXML=" + generateXML
                 + "]";
     }
 
@@ -522,6 +522,15 @@ public final class XMLObfuscator extends Obfuscator {
         LimitConfigurer limitTo(long limit);
 
         /**
+         * Indicates that XML obfuscators will always generate new, obfuscated documents. This method can be called when generating obfuscated
+         * documents is preferred, and no other method triggers the generation of obfuscated documents.
+         *
+         * @return This object.
+         * @since 1.3
+         */
+        Builder generateXML();
+
+        /**
          * This method allows the application of a function to this builder.
          * <p>
          * Any exception thrown by the function will be propagated to the caller.
@@ -684,7 +693,7 @@ public final class XMLObfuscator extends Obfuscator {
         private Map<QName, Obfuscator> qualifiedAttributeElements;
 
         // calculated settings
-        private boolean useXmlWriter;
+        private boolean generateXML;
 
         private ObfuscatorBuilder() {
             elements = new MapBuilder<>();
@@ -701,7 +710,7 @@ public final class XMLObfuscator extends Obfuscator {
             defaultCaseSensitivity = CASE_SENSITIVE;
             obfuscateNestedElementsByDefault = true;
 
-            useXmlWriter = false;
+            generateXML = false;
         }
 
         @Override
@@ -760,7 +769,7 @@ public final class XMLObfuscator extends Obfuscator {
             this.attributeElements = new MapBuilder<>();
             this.qualifiedAttributeElements = new HashMap<>();
 
-            useXmlWriter = true;
+            generateXML();
 
             return this;
         }
@@ -783,7 +792,7 @@ public final class XMLObfuscator extends Obfuscator {
             this.attributeElements = new MapBuilder<>();
             this.qualifiedAttributeElements = new HashMap<>();
 
-            useXmlWriter = true;
+            generateXML();
 
             return this;
         }
@@ -868,6 +877,12 @@ public final class XMLObfuscator extends Obfuscator {
         @Override
         public LimitConfigurer withTruncatedIndicator(String pattern) {
             this.truncatedIndicator = pattern;
+            return this;
+        }
+
+        @Override
+        public Builder generateXML() {
+            generateXML = true;
             return this;
         }
 
