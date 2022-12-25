@@ -112,6 +112,7 @@ class XMLObfuscatorTest {
                 arguments(obfuscator, createObfuscator(builder().withElement("test", none()).excludeNestedElements()), false),
                 arguments(obfuscator, createObfuscator(builder().withElement("test", none()).withElement(new QName("text"), none())), false),
                 arguments(obfuscator, createObfuscator(builder().withElement("test", none()).withAttribute("test", none())), false),
+                arguments(obfuscator, createObfuscator(builder().withElement("test", none()).withAttribute(new QName("test"), none())), false),
                 arguments(obfuscator, obfuscatorWithAttributes, false),
                 arguments(obfuscator, createObfuscator(builder().withElement("test", none()).limitTo(Long.MAX_VALUE)), true),
                 arguments(obfuscator, createObfuscator(builder().withElement("test", none()).limitTo(1024)), false),
