@@ -17,15 +17,33 @@
 
 package com.github.robtimus.obfuscation.xml;
 
+import java.util.Map;
 import java.util.Objects;
+import javax.xml.namespace.QName;
 import com.github.robtimus.obfuscation.Obfuscator;
 
 final class AttributeConfig {
 
-    final Obfuscator obfuscator;
+    private final Obfuscator obfuscator;
+    private final Map<String, Obfuscator> elements;
+    private final Map<QName, Obfuscator> qualifiedElements;
 
-    AttributeConfig(Obfuscator obfuscator) {
+    AttributeConfig(Obfuscator obfuscator, Map<String, Obfuscator> elements, Map<QName, Obfuscator> qualifiedElements) {
         this.obfuscator = Objects.requireNonNull(obfuscator);
+        this.elements = Objects.requireNonNull(elements);
+        this.qualifiedElements = Objects.requireNonNull(qualifiedElements);
+    }
+
+    Obfuscator obfuscator(QName elementName) {
+        Obfuscator result = qualifiedElements.get(elementName);
+        if (result != null) {
+            return result;
+        }
+        result = elements.get(elementName.getLocalPart());
+        if (result != null) {
+            return result;
+        }
+        return obfuscator;
     }
 
     @Override
@@ -37,18 +55,29 @@ final class AttributeConfig {
             return false;
         }
         AttributeConfig other = (AttributeConfig) o;
-        return obfuscator.equals(other.obfuscator);
+        return obfuscator.equals(other.obfuscator)
+                && elements.equals(other.elements)
+                && qualifiedElements.equals(other.qualifiedElements);
     }
 
     @Override
     public int hashCode() {
-        return obfuscator.hashCode();
+        final int prime = 31;
+        int result = 1;
+        result = prime * result + obfuscator.hashCode();
+        result = prime * result + elements.hashCode();
+        result = prime * result + qualifiedElements.hashCode();
+        return result;
     }
 
     @Override
     @SuppressWarnings("nls")
     public String toString() {
-        return "[obfuscator=" + obfuscator
-                + "]";
+        String result = "[obfuscator=" + obfuscator;
+        if (!elements.isEmpty() || !qualifiedElements.isEmpty()) {
+            result += ",elements=" + elements
+                    + ",qualifiedElements=" + qualifiedElements;
+        }
+        return result + "]";
     }
 }

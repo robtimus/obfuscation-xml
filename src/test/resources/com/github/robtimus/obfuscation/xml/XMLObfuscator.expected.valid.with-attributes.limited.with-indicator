@@ -2,7 +2,7 @@
   <text xmlns="urn:test" a="***" b="bar">
     ***
   </text>
-  <cdata>
+  <cdata xmlns="urn:test" a="*****">
     <![CDATA[
       ***
     ]]>
@@ -12,6 +12,4 @@
   <element>
     <t:text xmlns:t="urn:test" t:a="***" t:b="bar">
       ***
-    </t:text>
-    <cdata>
- ... (total: 3016)
+... (total: 3133)

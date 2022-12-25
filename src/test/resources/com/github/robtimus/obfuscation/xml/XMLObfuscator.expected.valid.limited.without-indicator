@@ -3,15 +3,13 @@
   <text xmlns="urn:test" a="foo" b="bar">
     ***
   </text>
-  <cdata>
+  <cdata xmlns="urn:test" a="foo">
     <![CDATA[
       ***
     ]]>
   </cdata>
   <empty />
   <!-- comment -->
-  <element>
-    <t:text xmlns:t="urn:test" t:a="foo" t:b="bar">
+  <element xmlns:t="urn:test">
+    <t:text t:a="foo" t:b="bar">
       ***
-    </t:text>
-    <cdata

@@ -142,10 +142,10 @@ final class WritingObfuscatingXMLParser {
 
         xmlStreamWriter.writeStartElement(name.getPrefix(), name.getLocalPart(), name.getNamespaceURI());
 
-        writeAttributes();
+        writeAttributes(name);
     }
 
-    private void writeAttributes() throws XMLStreamException {
+    private void writeAttributes(QName elementName) throws XMLStreamException {
         int attributeCount = xmlStreamReader.getAttributeCount();
         for (int i = 0; i < attributeCount; i++) {
             QName attributeName = xmlStreamReader.getAttributeName(i);
@@ -153,7 +153,7 @@ final class WritingObfuscatingXMLParser {
 
             AttributeConfig attributeConfig = configForAttribute(attributeName);
             if (attributeConfig != null) {
-                attributeValue = attributeConfig.obfuscator.obfuscateText(attributeValue).toString();
+                attributeValue = attributeConfig.obfuscator(elementName).obfuscateText(attributeValue).toString();
             }
             xmlStreamWriter.writeAttribute(attributeName.getPrefix(), attributeName.getNamespaceURI(), attributeName.getLocalPart(), attributeValue);
         }

@@ -3,22 +3,22 @@
   <text xmlns="urn:test" a="foo" b="bar">
     text&quot;
   </text2>
-  <cdata>
+  <cdata xmlns="urn:test" a="foo">
     <![CDATA[
       Longer data with embedded <xml>
     ]]>
   </cdata>
   <empty />
   <!-- comment -->
-  <element>
-    <t:text xmlns:t="urn:test" t:a="foo" t:b="bar">
+  <element xmlns:t="urn:test">
+    <t:text t:a="foo" t:b="bar">
       text&quot;
     </t:text>
-    <cdata>
+    <t:cdata t:a="foo">
       <![CDATA[
         Longer data with embedded <xml>
       ]]>
-    </cdata>
+    </t:cdata>
     <empty />
     <nested>
       <elem1>1</elem1>
@@ -50,22 +50,22 @@
     <text xmlns="urn:test" a="foo" b="bar">
       text&quot;
     </text>
-    <cdata>
+    <cdata xmlns="urn:test" a="foo">
       <![CDATA[
         Longer data with embedded <xml>
       ]]>
     </cdata>
     <empty />
     <!-- comment -->
-    <element>
-      <t:text xmlns:t="urn:test" t:a="foo" t:b="bar">
+    <element xmlns:t="urn:test">
+      <t:text t:a="foo" t:b="bar">
         text&quot;
       </t:text>
-      <cdata>
+      <t:cdata t:a="foo">
         <![CDATA[
           Longer data with embedded <xml>
         ]]>
-      </cdata>
+      </t:cdata>
       <empty />
       <nested>
         <elem1>1</elem1>
@@ -98,22 +98,22 @@
     <text xmlns="urn:test" a="foo" b="bar">
       text&quot;
     </text>
-    <cdata>
+    <cdata xmlns="urn:test" a="foo">
       <![CDATA[
         Longer data with embedded <xml>
       ]]>
     </cdata>
     <empty />
     <!-- comment -->
-    <element>
-      <t:text xmlns:t="urn:test" t:a="foo" t:b="bar">
+    <element xmlns:t="urn:test">
+      <t:text t:a="foo" t:b="bar">
         text&quot;
       </t:text>
-      <cdata>
+      <t:cdata t:a="foo">
         <![CDATA[
           Longer data with embedded <xml>
         ]]>
-      </cdata>
+      </t:cdata>
       <empty />
       <nested>
         <elem1>1</elem1>

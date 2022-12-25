@@ -2,7 +2,7 @@
   <text xmlns="urn:test" a="***" b="bar">
     ***
   </text>
-  <cdata>
+  <cdata xmlns="urn:test" a="*****">
     <![CDATA[
       ***
     ]]>
@@ -13,11 +13,11 @@
     <t:text xmlns:t="urn:test" t:a="***" t:b="bar">
       ***
     </t:text>
-    <cdata>
+    <t:cdata xmlns:t="urn:test" t:a="*****">
       <![CDATA[
         ***
       ]]>
-    </cdata>
+    </t:cdata>
     <empty/>
     <nested>
       <elem1>1</elem1>
@@ -49,7 +49,7 @@
     <text xmlns="urn:test" a="***" b="bar">
       ***
     </text>
-    <cdata>
+    <cdata xmlns="urn:test" a="*****">
       <![CDATA[
         ***
       ]]>
@@ -60,11 +60,11 @@
       <t:text xmlns:t="urn:test" t:a="***" t:b="bar">
         ***
       </t:text>
-      <cdata>
+      <t:cdata xmlns:t="urn:test" t:a="*****">
         <![CDATA[
           ***
         ]]>
-      </cdata>
+      </t:cdata>
       <empty/>
       <nested>
         <elem1>1</elem1>
@@ -97,7 +97,7 @@
     <text xmlns="urn:test" a="***" b="bar">
       ***
     </text>
-    <cdata>
+    <cdata xmlns="urn:test" a="*****">
       <![CDATA[
         ***
       ]]>
@@ -108,11 +108,11 @@
       <t:text xmlns:t="urn:test" t:a="***" t:b="bar">
         ***
       </t:text>
-      <cdata>
+      <t:cdata xmlns:t="urn:test" t:a="*****">
         <![CDATA[
           ***
         ]]>
-      </cdata>
+      </t:cdata>
       <empty/>
       <nested>
         <elem1>1</elem1>

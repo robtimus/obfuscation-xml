@@ -26,7 +26,12 @@ By default, if an obfuscator is configured for an element, it will be used to ob
 If needed, the values of attributes can be obfuscated as well as text. For example:
 
     Obfuscator obfuscator = XMLObfuscator.builder()
+            // obfuscate any "password" attribute
             .withAttribute("password", Obfuscator.fixedLength(3))
+            // only obfuscate "username" attributes of "request" elements
+            // the Obfuscator.none() will be applied (so no obfuscation) for any other occurrence
+            .withAttribute("username", Obfuscator.none())
+                .forElement("request", Obfuscator.fixedLength(3))
             .build();
 
 Note that if attributes need to be obfuscated, XML obfuscators perform obfuscating by generating new, obfuscated XML documents. The resulting obfuscated XML documents may slightly differ from the original.

@@ -17,6 +17,7 @@
 
 package com.github.robtimus.obfuscation.xml;
 
+import static com.github.robtimus.obfuscation.support.CaseSensitivity.CASE_SENSITIVE;
 import static com.github.robtimus.obfuscation.support.ObfuscatorUtils.appendAtMost;
 import static com.github.robtimus.obfuscation.support.ObfuscatorUtils.checkStartAndEnd;
 import static com.github.robtimus.obfuscation.support.ObfuscatorUtils.copyTo;
@@ -347,6 +348,7 @@ public final class XMLObfuscator extends Obfuscator {
 
         /**
          * Adds an element to obfuscate.
+         * <p>
          * This method is an alias for {@link #withElement(String, Obfuscator, CaseSensitivity)} with the last specified default case sensitivity
          * using {@link #caseSensitiveByDefault()} or {@link #caseInsensitiveByDefault()}. The default is {@link CaseSensitivity#CASE_SENSITIVE}.
          *
@@ -384,7 +386,9 @@ public final class XMLObfuscator extends Obfuscator {
         ElementConfigurer withElement(QName element, Obfuscator obfuscator);
 
         /**
-         * Adds an attribute to obfuscate.
+         * Adds an attribute to obfuscate. This will cause any occurrence of the attribute to be obfuscated, regardless of their elements.
+         * The returned object can be used to define obfuscators for occurrences of the attribute in specific elements.
+         * <p>
          * This method is an alias for {@link #withAttribute(String, Obfuscator, CaseSensitivity)} with the last specified default case sensitivity
          * using {@link #caseSensitiveByDefault()} or {@link #caseInsensitiveByDefault()}. The default is {@link CaseSensitivity#CASE_SENSITIVE}.
          * <p>
@@ -401,7 +405,8 @@ public final class XMLObfuscator extends Obfuscator {
         AttributeConfigurer withAttribute(String attribute, Obfuscator obfuscator);
 
         /**
-         * Adds an attribute to obfuscate.
+         * Adds an attribute to obfuscate. This will cause any occurrence of the attribute to be obfuscated, regardless of their elements.
+         * The returned object can be used to define obfuscators for occurrences of the attribute in specific elements.
          * <p>
          * Note: because locations of attributes are not easily available, XML obfuscators will generate new, obfuscated documents when attributes
          * need to be obfuscated.
@@ -417,7 +422,8 @@ public final class XMLObfuscator extends Obfuscator {
         AttributeConfigurer withAttribute(String attribute, Obfuscator obfuscator, CaseSensitivity caseSensitivity);
 
         /**
-         * Adds an attribute to obfuscate.
+         * Adds an attribute to obfuscate. This will cause any occurrence of the attribute to be obfuscated, regardless of their elements.
+         * The returned object can be used to define obfuscators for occurrences of the attribute in specific elements.
          * Any attribute added using this method will take precedence over attributes added using {@link #withAttribute(String, Obfuscator)} or
          * {@link #withAttribute(String, Obfuscator, CaseSensitivity)}.
          * <p>
@@ -585,7 +591,48 @@ public final class XMLObfuscator extends Obfuscator {
      * @since 1.2
      */
     public interface AttributeConfigurer extends Builder {
-        // This interface exists to not have to make breaking changes when attributes can be further configured
+
+        /**
+         * Sets the obfuscator to use for occurrences of the attribute for a specific element.
+         * <p>
+         * This method is an alias for {@link #forElement(String, Obfuscator, CaseSensitivity)} with the last specified default case sensitivity
+         * using {@link #caseSensitiveByDefault()} or {@link #caseInsensitiveByDefault()}. The default is {@link CaseSensitivity#CASE_SENSITIVE}.
+         *
+         * @param element The local name of the element.
+         * @param obfuscator The obfuscator to use for obfuscating the attribute.
+         * @return An object that can be used to configure the attribute, or continue building {@link XMLObfuscator XMLObfuscators}.
+         * @throws NullPointerException If the given element name or obfuscator is {@code null}.
+         * @throws IllegalArgumentException If an element with the same local name and the same case sensitivity was already added for the attribute.
+         * @since 1.3
+         */
+        AttributeConfigurer forElement(String element, Obfuscator obfuscator);
+
+        /**
+         * Sets the obfuscator to use for occurrences of the attribute for a specific element.
+         *
+         * @param element The local name of the element.
+         * @param obfuscator The obfuscator to use for obfuscating the attribute.
+         * @param caseSensitivity The case sensitivity for the element.
+         * @return An object that can be used to configure the attribute, or continue building {@link XMLObfuscator XMLObfuscators}.
+         * @throws NullPointerException If the given element name, obfuscator or case sensitivity is {@code null}.
+         * @throws IllegalArgumentException If an element with the same local name and the same case sensitivity was already added for the attribute.
+         * @since 1.3
+         */
+        AttributeConfigurer forElement(String element, Obfuscator obfuscator, CaseSensitivity caseSensitivity);
+
+        /**
+         * Sets the obfuscator to use for occurrences of the attribute for a specific element.
+         * Any element added using this method will take precedence over elements added using {@link #forElement(String, Obfuscator)} or
+         * {@link #forElement(String, Obfuscator, CaseSensitivity)}.
+         *
+         * @param element The qualified name of the element.
+         * @param obfuscator The obfuscator to use for obfuscating the attribute.
+         * @return An object that can be used to configure the attribute, or continue building {@link XMLObfuscator XMLObfuscators}.
+         * @throws NullPointerException If the given element name or obfuscator is {@code null}.
+         * @throws IllegalArgumentException If an element with the same qualified name was already added for the attribute.
+         * @since 1.3
+         */
+        AttributeConfigurer forElement(QName element, Obfuscator obfuscator);
     }
 
     /**
@@ -622,6 +669,7 @@ public final class XMLObfuscator extends Obfuscator {
         private String truncatedIndicator;
 
         // default settings
+        private CaseSensitivity defaultCaseSensitivity;
         private boolean obfuscateNestedElementsByDefault;
 
         // per element / attribute settings
@@ -632,6 +680,8 @@ public final class XMLObfuscator extends Obfuscator {
         private Obfuscator obfuscator;
         private CaseSensitivity caseSensitivity;
         private boolean obfuscateNestedElements;
+        private MapBuilder<Obfuscator> attributeElements;
+        private Map<QName, Obfuscator> qualifiedAttributeElements;
 
         // calculated settings
         private boolean useXmlWriter;
@@ -648,6 +698,7 @@ public final class XMLObfuscator extends Obfuscator {
             limit = Long.MAX_VALUE;
             truncatedIndicator = "... (total: %d)"; //$NON-NLS-1$
 
+            defaultCaseSensitivity = CASE_SENSITIVE;
             obfuscateNestedElementsByDefault = true;
 
             useXmlWriter = false;
@@ -655,16 +706,7 @@ public final class XMLObfuscator extends Obfuscator {
 
         @Override
         public ElementConfigurer withElement(String element, Obfuscator obfuscator) {
-            addLastElementOrAttribute();
-
-            elements.testEntry(element);
-
-            this.element = element;
-            this.obfuscator = obfuscator;
-            this.caseSensitivity = null;
-            this.obfuscateNestedElements = obfuscateNestedElementsByDefault;
-
-            return this;
+            return withElement(element, obfuscator, defaultCaseSensitivity);
         }
 
         @Override
@@ -702,17 +744,7 @@ public final class XMLObfuscator extends Obfuscator {
 
         @Override
         public AttributeConfigurer withAttribute(String attribute, Obfuscator obfuscator) {
-            addLastElementOrAttribute();
-
-            attributes.testEntry(attribute);
-
-            this.attribute = attribute;
-            this.obfuscator = obfuscator;
-            this.caseSensitivity = null;
-
-            useXmlWriter = true;
-
-            return this;
+            return withAttribute(attribute, obfuscator, defaultCaseSensitivity);
         }
 
         @Override
@@ -724,6 +756,9 @@ public final class XMLObfuscator extends Obfuscator {
             this.attribute = attribute;
             this.obfuscator = obfuscator;
             this.caseSensitivity = caseSensitivity;
+
+            this.attributeElements = new MapBuilder<>();
+            this.qualifiedAttributeElements = new HashMap<>();
 
             useXmlWriter = true;
 
@@ -745,22 +780,49 @@ public final class XMLObfuscator extends Obfuscator {
             this.obfuscator = obfuscator;
             this.caseSensitivity = null;
 
+            this.attributeElements = new MapBuilder<>();
+            this.qualifiedAttributeElements = new HashMap<>();
+
             useXmlWriter = true;
 
             return this;
         }
 
         @Override
+        public AttributeConfigurer forElement(String element, Obfuscator obfuscator) {
+            return forElement(element, obfuscator, defaultCaseSensitivity);
+        }
+
+        @Override
+        public AttributeConfigurer forElement(String element, Obfuscator obfuscator, CaseSensitivity caseSensitivity) {
+            attributeElements.withEntry(element, obfuscator, caseSensitivity);
+
+            return this;
+        }
+
+        @Override
+        public AttributeConfigurer forElement(QName element, Obfuscator obfuscator) {
+            Objects.requireNonNull(element);
+            Objects.requireNonNull(obfuscator);
+
+            if (qualifiedAttributeElements.containsKey(element)) {
+                throw new IllegalArgumentException(Messages.XMLObfuscator.duplicateElement(element));
+            }
+
+            qualifiedAttributeElements.put(element, obfuscator);
+
+            return this;
+        }
+
+        @Override
         public Builder caseSensitiveByDefault() {
-            elements.caseSensitiveByDefault();
-            attributes.caseSensitiveByDefault();
+            defaultCaseSensitivity = CASE_SENSITIVE;
             return this;
         }
 
         @Override
         public Builder caseInsensitiveByDefault() {
-            elements.caseInsensitiveByDefault();
-            attributes.caseInsensitiveByDefault();
+            defaultCaseSensitivity = CaseSensitivity.CASE_INSENSITIVE;
             return this;
         }
 
@@ -825,24 +887,24 @@ public final class XMLObfuscator extends Obfuscator {
             return Collections.unmodifiableMap(new HashMap<>(qualifiedAttributes));
         }
 
+        private Map<String, Obfuscator> attributeElements() {
+            return attributeElements.build();
+        }
+
+        private Map<QName, Obfuscator> qualifiedAttributeElements() {
+            return Collections.unmodifiableMap(new HashMap<>(qualifiedAttributeElements));
+        }
+
         private void addLastElementOrAttribute() {
             if (attribute != null) {
-                AttributeConfig attributeConfig = new AttributeConfig(obfuscator);
-                if (caseSensitivity != null) {
-                    attributes.withEntry(attribute, attributeConfig, caseSensitivity);
-                } else {
-                    attributes.withEntry(attribute, attributeConfig);
-                }
+                AttributeConfig attributeConfig = new AttributeConfig(obfuscator, attributeElements(), qualifiedAttributeElements());
+                attributes.withEntry(attribute, attributeConfig, caseSensitivity);
             } else if (qualifiedAttribute != null) {
-                AttributeConfig attributeConfig = new AttributeConfig(obfuscator);
+                AttributeConfig attributeConfig = new AttributeConfig(obfuscator, attributeElements(), qualifiedAttributeElements());
                 qualifiedAttributes.put(qualifiedAttribute, attributeConfig);
             } else if (element != null) {
                 ElementConfig elementConfig = new ElementConfig(obfuscator, obfuscateNestedElements);
-                if (caseSensitivity != null) {
-                    elements.withEntry(element, elementConfig, caseSensitivity);
-                } else {
-                    elements.withEntry(element, elementConfig);
-                }
+                elements.withEntry(element, elementConfig, caseSensitivity);
             } else if (qualifiedElement != null) {
                 ElementConfig elementConfig = new ElementConfig(obfuscator, obfuscateNestedElements);
                 qualifiedElements.put(qualifiedElement, elementConfig);
@@ -853,7 +915,7 @@ public final class XMLObfuscator extends Obfuscator {
             attribute = null;
             qualifiedAttribute = null;
             obfuscator = null;
-            caseSensitivity = null;
+            caseSensitivity = defaultCaseSensitivity;
             obfuscateNestedElements = obfuscateNestedElementsByDefault;
         }
 

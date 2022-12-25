@@ -85,6 +85,7 @@ import com.ctc.wstx.exc.WstxLazyException;
 import com.github.robtimus.junit.support.extension.testlogger.Reload4jLoggerContext;
 import com.github.robtimus.junit.support.extension.testlogger.TestLogger;
 import com.github.robtimus.obfuscation.Obfuscator;
+import com.github.robtimus.obfuscation.xml.XMLObfuscator.AttributeConfigurer;
 import com.github.robtimus.obfuscation.xml.XMLObfuscator.Builder;
 import com.github.robtimus.obfuscation.xml.XMLObfuscatorTest.ObfuscatorTest.UseSourceTruncation;
 
@@ -129,6 +130,13 @@ class XMLObfuscatorTest {
                 arguments(obfuscatorWithAttributes,
                         createObfuscator(builder().withElement("test", none()).withAttribute("a", none(), CASE_SENSITIVE)), true),
                 arguments(obfuscatorWithAttributes, createObfuscator(builder().withElement("test", none()).withAttribute(new QName("a"), none())),
+                        false),
+                arguments(obfuscatorWithAttributes, createObfuscator(builder().withElement("test", none()).withAttribute("a", fixedLength(3))),
+                        false),
+                arguments(obfuscatorWithAttributes,
+                        createObfuscator(builder().withElement("test", none()).withAttribute("a", none()).forElement("test", none())), false),
+                arguments(obfuscatorWithAttributes,
+                        createObfuscator(builder().withElement("test", none()).withAttribute("a", none()).forElement(new QName("test"), none())),
                         false),
         };
     }
@@ -304,6 +312,35 @@ class XMLObfuscatorTest {
             assertDoesNotThrow(() -> builder.withAttribute(attribute, obfuscator));
             IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> builder.withAttribute(attribute, obfuscator));
             assertEquals(Messages.XMLObfuscator.duplicateAttribute(attribute), exception.getMessage());
+        }
+
+        @Test
+        @DisplayName("forElement(QName, Obfuscator) with the same local name but different namespaces")
+        void testQualifiedAttributeElementNameWithSameLocalName() {
+            String localName = "test";
+            Obfuscator obfuscator = fixedLength(3);
+
+            AttributeConfigurer builder = builder().withAttribute("a", obfuscator);
+            assertDoesNotThrow(() -> builder.forElement(new QName(localName), obfuscator));
+            assertDoesNotThrow(() -> builder.forElement(new QName(XMLConstants.XML_NS_URI, localName), obfuscator));
+        }
+
+        @Test
+        @DisplayName("forElement(QName, Obfuscator) with duplicate name")
+        void testDuplicateQualifiedAttributeElementName() {
+            QName element = new QName("test");
+            Obfuscator obfuscator = fixedLength(3);
+
+            AttributeConfigurer builder = builder().withAttribute("a", obfuscator);
+            assertDoesNotThrow(() -> builder.forElement(element, obfuscator));
+            IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> builder.forElement(element, obfuscator));
+            assertEquals(Messages.XMLObfuscator.duplicateElement(element), exception.getMessage());
+
+            // test for another attribute the same name can be reused
+            AttributeConfigurer builder2 = builder.withAttribute("a2", obfuscator);
+            assertDoesNotThrow(() -> builder2.forElement(element, obfuscator));
+            exception = assertThrows(IllegalArgumentException.class, () -> builder2.forElement(element, obfuscator));
+            assertEquals(Messages.XMLObfuscator.duplicateElement(element), exception.getMessage());
         }
 
         @Nested
@@ -976,7 +1013,7 @@ class XMLObfuscatorTest {
         Obfuscator unusedObfuscator = fixedValue("not used");
         return builder
                 .withElement(new QName("urn:test", "text"), obfuscator)
-                .withElement(new QName("cdata"), obfuscator)
+                .withElement(new QName("urn:test", "cdata"), obfuscator)
                 .withElement(new QName("empty"), obfuscator)
                 .withElement(new QName("element"), obfuscator)
                 .withElement(new QName("notObfuscated"), none())
@@ -1033,13 +1070,15 @@ class XMLObfuscatorTest {
     private static XMLObfuscator createObfuscatorWithAttributes(Builder builder) {
         Obfuscator obfuscator = fixedLength(3);
         return createObfuscator(builder
-                .withAttribute("a", obfuscator));
+                .withAttribute("a", obfuscator)
+                        .forElement("cdata", fixedLength(5)));
     }
 
     private static Obfuscator createObfuscatorCaseInsensitiveWithAttributes(Builder builder) {
         Obfuscator obfuscator = fixedLength(3);
         return createObfuscatorCaseInsensitive(builder
-                .withAttribute("a", obfuscator));
+                .withAttribute("A", obfuscator)
+                        .forElement("CDATA", fixedLength(5)));
     }
 
     private static XMLObfuscator createObfuscatorQualifiedNamesWithAttributes(Builder builder) {
@@ -1047,20 +1086,25 @@ class XMLObfuscatorTest {
         Obfuscator unusedObfuscator = fixedValue("not used");
         return createObfuscatorQualifiedNames(builder
                 .withAttribute(new QName("urn:test", "a"), obfuscator)
+                        .forElement(new QName("urn:test", "cdata"), fixedLength(5))
                 .withAttribute(new QName(XMLConstants.XML_NS_URI, "a"), unusedObfuscator)
-                .withAttribute("a", unusedObfuscator));
+                        .forElement("cdata", unusedObfuscator)
+                .withAttribute("a", unusedObfuscator)
+                        .forElement("cdata", unusedObfuscator));
     }
 
     private static Obfuscator createObfuscatorObfuscatingAllWithAttributes(Builder builder) {
         Obfuscator obfuscator = fixedLength(3);
         return createObfuscatorObfuscatingAll(builder
-                .withAttribute("a", obfuscator));
+                .withAttribute("a", obfuscator)
+                        .forElement("cdata", fixedLength(5)));
     }
 
     private static Obfuscator createObfuscatorObfuscatingTextOnlyWithAttributes(Builder builder) {
         Obfuscator obfuscator = fixedLength(3);
         return createObfuscatorObfuscatingTextOnly(builder
-                .withAttribute("a", obfuscator));
+                .withAttribute("a", obfuscator)
+                        .forElement("cdata", fixedLength(5)));
     }
 
     static String readResource(String name) {

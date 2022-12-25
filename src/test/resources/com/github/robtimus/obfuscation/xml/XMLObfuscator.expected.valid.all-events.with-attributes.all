@@ -5,12 +5,16 @@
   <!ATTLIST text a CDATA #REQUIRED>
   <!ATTLIST text b CDATA #REQUIRED>
   <!ELEMENT t:text ANY>
-  <!ATTLIST t:text xmlns:t CDATA #FIXED "urn:test">
   <!ATTLIST t:text t:a CDATA #REQUIRED>
   <!ATTLIST t:text t:b CDATA #REQUIRED>
   <!ELEMENT cdata (#PCDATA)>
+  <!ATTLIST cdata xmlns CDATA #FIXED "urn:test">
+  <!ATTLIST cdata a CDATA #REQUIRED>
+  <!ELEMENT t:cdata (#PCDATA)>
+  <!ATTLIST t:cdata t:a CDATA #REQUIRED>
   <!ELEMENT empty EMPTY>
   <!ELEMENT element ANY>
+  <!ATTLIST element xmlns:t CDATA #FIXED "urn:test">
   <!ELEMENT nested ANY>
   <!ELEMENT elem1 (#PCDATA)>
   <!ELEMENT elem2 (#PCDATA)>
@@ -24,7 +28,7 @@
   <text xmlns="urn:test" a="***" b="bar">
     ***
   </text>
-  <cdata>
+  <cdata xmlns="urn:test" a="*****">
     <![CDATA[
       ***
     ]]>
@@ -35,11 +39,11 @@
     <t:text xmlns:t="urn:test" t:a="***" t:b="bar">
       ***
     </t:text>
-    <cdata>
+    <t:cdata xmlns:t="urn:test" t:a="*****">
       <![CDATA[
         ***
       ]]>
-    </cdata>
+    </t:cdata>
     <empty/>
     <nested>
       <elem1>***</elem1>
@@ -71,7 +75,7 @@
     <text xmlns="urn:test" a="***" b="bar">
       ***
     </text>
-    <cdata>
+    <cdata xmlns="urn:test" a="*****">
       <![CDATA[
         ***
       ]]>
@@ -82,11 +86,11 @@
       <t:text xmlns:t="urn:test" t:a="***" t:b="bar">
         ***
       </t:text>
-      <cdata>
+      <t:cdata xmlns:t="urn:test" t:a="*****">
         <![CDATA[
           ***
         ]]>
-      </cdata>
+      </t:cdata>
       <empty/>
       <nested>
         <elem1>***</elem1>
@@ -119,7 +123,7 @@
     <text xmlns="urn:test" a="***" b="bar">
       text"Entity Value
     </text>
-    <cdata>
+    <cdata xmlns="urn:test" a="*****">
       <![CDATA[
         Longer data with embedded <xml>
       ]]>
@@ -130,11 +134,11 @@
       <t:text xmlns:t="urn:test" t:a="***" t:b="bar">
         text"Entity Value
       </t:text>
-      <cdata>
+      <t:cdata xmlns:t="urn:test" t:a="*****">
         <![CDATA[
           Longer data with embedded <xml>
         ]]>
-      </cdata>
+      </t:cdata>
       <empty/>
       <nested>
         <elem1>1</elem1>
