@@ -465,6 +465,16 @@ class XMLObfuscatorTest {
                 }
             }
         }
+
+        @Nested
+        @DisplayName("generating XML")
+        class GenerateXML extends ObfuscatorTest {
+
+            GenerateXML() {
+                super("XMLObfuscator.input.valid.xml", "XMLObfuscator.expected.valid.generate-xml",
+                        () -> createObfuscator(builder()));
+            }
+        }
     }
 
     @Nested

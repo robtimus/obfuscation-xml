@@ -45,6 +45,7 @@ import org.codehaus.stax2.XMLOutputFactory2;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import com.ctc.wstx.api.WstxInputProperties;
+import com.ctc.wstx.api.WstxOutputProperties;
 import com.ctc.wstx.exc.WstxLazyException;
 import com.ctc.wstx.stax.WstxInputFactory;
 import com.ctc.wstx.stax.WstxOutputFactory;
@@ -135,6 +136,7 @@ public final class XMLObfuscator extends Obfuscator {
         outputFactory.configureForSpeed();
         // Needed to get namespace declarations in the resulting XML
         outputFactory.setProperty(XMLOutputFactory.IS_REPAIRING_NAMESPACES, true);
+        outputFactory.setProperty(WstxOutputProperties.P_USE_DOUBLE_QUOTES_IN_XML_DECL, true);
         return outputFactory;
     }
 

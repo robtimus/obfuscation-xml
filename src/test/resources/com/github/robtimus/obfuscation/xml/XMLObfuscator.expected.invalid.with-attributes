@@ -1,4 +1,4 @@
-<?xml version='1.0' encoding='UTF-8'?><root>
+<?xml version="1.0" encoding="UTF-8"?><root>
   <text xmlns="urn:test" a="***" b="bar">
     ***
   <obfuscation aborted due to malformed XML>
