@@ -934,6 +934,8 @@ public final class XMLObfuscator extends Obfuscator {
             obfuscator = null;
             caseSensitivity = defaultCaseSensitivity;
             obfuscateNestedElements = obfuscateNestedElementsByDefault;
+            attributeElements = null;
+            qualifiedAttributeElements = null;
         }
 
         @Override
