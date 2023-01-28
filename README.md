@@ -1,4 +1,9 @@
 # obfuscation-xml
+[![Maven Central](https://img.shields.io/maven-central/v/com.github.robtimus/obfuscation-xml)](https://search.maven.org/artifact/com.github.robtimus/obfuscation-xml)
+[![Build Status](https://github.com/robtimus/obfuscation-xml/actions/workflows/build.yml/badge.svg)](https://github.com/robtimus/obfuscation-xml/actions/workflows/build.yml)
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=com.github.robtimus%3Aobfuscation-xml&metric=alert_status)](https://sonarcloud.io/summary/overall?id=com.github.robtimus%3Aobfuscation-xml)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=com.github.robtimus%3Aobfuscation-xml&metric=coverage)](https://sonarcloud.io/summary/overall?id=com.github.robtimus%3Aobfuscation-xml)
+[![Known Vulnerabilities](https://snyk.io/test/github/robtimus/obfuscation-xml/badge.svg)](https://snyk.io/test/github/robtimus/obfuscation-xml)
 
 Provides functionality for obfuscating XML documents. This can be useful for logging such documents, e.g. as part of request/response logging, where sensitive content like passwords should not be logged as-is.
 
