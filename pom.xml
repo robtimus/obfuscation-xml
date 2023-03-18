@@ -22,7 +22,7 @@
   <parent>
     <groupId>com.github.robtimus</groupId>
     <artifactId>robtimus-parent</artifactId>
-    <version>1.8</version>
+    <version>1.9</version>
     <relativePath />
   </parent>
 
@@ -62,7 +62,7 @@
   </issueManagement>
 
   <properties>
-    <version.junit-support>2.1</version.junit-support>
+    <version.junit-support>2.2</version.junit-support>
     <version.obfuscation-core>1.4</version.obfuscation-core>
     <version.pioneer>1.9.1</version.pioneer>
     <version.slf4j>1.7.36</version.slf4j>
