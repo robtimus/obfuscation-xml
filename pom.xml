@@ -63,10 +63,10 @@
 
   <properties>
     <version.junit-support>2.2</version.junit-support>
-    <version.obfuscation-core>1.4</version.obfuscation-core>
+    <version.obfuscation-core>1.5</version.obfuscation-core>
     <version.pioneer>1.9.1</version.pioneer>
     <version.slf4j>1.7.36</version.slf4j>
-    <version.woodstox-core>6.4.0</version.woodstox-core>
+    <version.woodstox-core>6.5.1</version.woodstox-core>
   </properties>
 
   <dependencies>
