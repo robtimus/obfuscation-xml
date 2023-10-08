@@ -19,16 +19,17 @@ package com.github.robtimus.obfuscation.xml;
 
 import java.util.Objects;
 import com.github.robtimus.obfuscation.Obfuscator;
+import com.github.robtimus.obfuscation.xml.XMLObfuscator.ElementConfigurer.ObfuscationMode;
 
 final class ElementConfig {
 
     final Obfuscator obfuscator;
-    final boolean obfuscateNestedElements;
+    final ObfuscationMode forNestedElements;
     final boolean performObfuscation;
 
-    ElementConfig(Obfuscator obfuscator, boolean obfuscateNestedElements) {
+    ElementConfig(Obfuscator obfuscator, ObfuscationMode forNestedElements) {
         this.obfuscator = Objects.requireNonNull(obfuscator);
-        this.obfuscateNestedElements = obfuscateNestedElements;
+        this.forNestedElements = Objects.requireNonNull(forNestedElements);
         this.performObfuscation = !obfuscator.equals(Obfuscator.none());
     }
 
@@ -42,19 +43,19 @@ final class ElementConfig {
         }
         ElementConfig other = (ElementConfig) o;
         return obfuscator.equals(other.obfuscator)
-                && obfuscateNestedElements == other.obfuscateNestedElements;
+                && forNestedElements == other.forNestedElements;
     }
 
     @Override
     public int hashCode() {
-        return obfuscator.hashCode() ^ Boolean.hashCode(obfuscateNestedElements);
+        return obfuscator.hashCode() ^ forNestedElements.hashCode();
     }
 
     @Override
     @SuppressWarnings("nls")
     public String toString() {
         return "[obfuscator=" + obfuscator
-                + ",obfuscateObjects=" + obfuscateNestedElements
+                + ",forObjects=" + forNestedElements
                 + "]";
     }
 }

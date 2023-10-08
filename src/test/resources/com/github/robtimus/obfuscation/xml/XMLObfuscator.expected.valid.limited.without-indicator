@@ -12,4 +12,4 @@
   <!-- comment -->
   <element xmlns:t="urn:test">
     <t:text t:a="foo" t:b="bar">
-      ***
+      eee

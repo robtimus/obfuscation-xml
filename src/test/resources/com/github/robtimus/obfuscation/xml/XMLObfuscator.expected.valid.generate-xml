@@ -12,18 +12,18 @@
   <!-- comment -->
   <element xmlns:t="urn:test">
     <t:text t:a="foo" t:b="bar">
-      ***
+      eee
     </t:text>
     <t:cdata t:a="foo">
       <![CDATA[
-        ***
+        eee
       ]]>
     </t:cdata>
     <empty />
     <nested>
-      <elem1>***</elem1>
+      <elem1>eee</elem1>
       <!-- comment -->
-      <elem2>***</elem2>
+      <elem2>eee</elem2>
     </nested>
   </element>
   <notMatchedText>
@@ -59,18 +59,18 @@
     <!-- comment -->
     <element xmlns:t="urn:test">
       <t:text t:a="foo" t:b="bar">
-        ***
+        eee
       </t:text>
       <t:cdata t:a="foo">
         <![CDATA[
-          ***
+          eee
         ]]>
       </t:cdata>
       <empty />
       <nested>
-        <elem1>***</elem1>
+        <elem1>eee</elem1>
         <!-- comment -->
-        <elem2>***</elem2>
+        <elem2>eee</elem2>
       </nested>
     </element>
     <notMatchedText>

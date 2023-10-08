@@ -87,6 +87,7 @@ import com.github.robtimus.junit.support.extension.testlogger.TestLogger;
 import com.github.robtimus.obfuscation.Obfuscator;
 import com.github.robtimus.obfuscation.xml.XMLObfuscator.AttributeConfigurer;
 import com.github.robtimus.obfuscation.xml.XMLObfuscator.Builder;
+import com.github.robtimus.obfuscation.xml.XMLObfuscator.ElementConfigurer.ObfuscationMode;
 import com.github.robtimus.obfuscation.xml.XMLObfuscatorTest.ObfuscatorTest.UseSourceTruncation;
 
 @SuppressWarnings("nls")
@@ -435,6 +436,17 @@ class XMLObfuscatorTest {
             ObfuscatingTextOverridden() {
                 super("XMLObfuscator.input.valid.xml", "XMLObfuscator.expected.valid.text",
                         () -> createObfuscatorObfuscatingTextOnly(builder().allByDefault()));
+            }
+        }
+
+        @Nested
+        @DisplayName("obfuscating with INHERITED_OVERRIDABLE mode")
+        @TestInstance(Lifecycle.PER_CLASS)
+        class ObfuscatingInheritedOverridable extends ObfuscatorTest {
+
+            ObfuscatingInheritedOverridable() {
+                super("XMLObfuscator.input.valid.xml", "XMLObfuscator.expected.valid.inherited-overridable",
+                        () -> createObfuscatorWithObfuscatorMode(builder(), ObfuscationMode.INHERIT_OVERRIDABLE));
             }
         }
 
@@ -1003,7 +1015,7 @@ class XMLObfuscatorTest {
                 .withElement("text", obfuscator)
                 .withElement("cdata", obfuscator)
                 .withElement("empty", obfuscator)
-                .withElement("element", obfuscator)
+                .withElement("element", fixedLength(3, 'e'))
                 .withElement("notObfuscated", none())
                 .build();
     }
@@ -1014,7 +1026,7 @@ class XMLObfuscatorTest {
                 .withElement("TEXT", obfuscator)
                 .withElement("CDATA", obfuscator)
                 .withElement("EMPTY", obfuscator)
-                .withElement("ELEMENT", obfuscator)
+                .withElement("ELEMENT", fixedLength(3, 'e'))
                 .withElement("NOTOBFUSCATED", none())
                 .build();
     }
@@ -1026,7 +1038,7 @@ class XMLObfuscatorTest {
                 .withElement(new QName("urn:test", "text"), obfuscator)
                 .withElement(new QName("urn:test", "cdata"), obfuscator)
                 .withElement(new QName("empty"), obfuscator)
-                .withElement(new QName("element"), obfuscator)
+                .withElement(new QName("element"), fixedLength(3, 'e'))
                 .withElement(new QName("notObfuscated"), none())
 
                 .withElement(new QName(XMLConstants.XML_NS_URI, "text"), unusedObfuscator)
@@ -1049,7 +1061,7 @@ class XMLObfuscatorTest {
                 .withElement("text", obfuscator).all()
                 .withElement("cdata", obfuscator).all()
                 .withElement("empty", obfuscator).all()
-                .withElement("element", obfuscator).all()
+                .withElement("element", fixedLength(3, 'e')).all()
                 .withElement("notObfuscated", none()).all()
                 .build();
     }
@@ -1060,8 +1072,20 @@ class XMLObfuscatorTest {
                 .withElement("text", obfuscator).textOnly()
                 .withElement("cdata", obfuscator).textOnly()
                 .withElement("empty", obfuscator).textOnly()
-                .withElement("element", obfuscator).textOnly()
+                .withElement("element", fixedLength(3, 'e')).textOnly()
                 .withElement("notObfuscated", none()).textOnly()
+                .build();
+    }
+
+    private static Obfuscator createObfuscatorWithObfuscatorMode(Builder builder, ObfuscationMode obfuscationMode) {
+        Obfuscator obfuscator = fixedLength(3);
+        return builder
+                .forNestedElementsByDefault(obfuscationMode)
+                .withElement("text", obfuscator)
+                .withElement("cdata", obfuscator)
+                .withElement("empty", obfuscator)
+                .withElement("element", fixedLength(3, 'e'))
+                .withElement("notObfuscated", none())
                 .build();
     }
 

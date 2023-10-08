@@ -29,6 +29,7 @@ import javax.xml.stream.XMLStreamReader;
 import javax.xml.stream.XMLStreamWriter;
 import org.codehaus.stax2.DTDInfo;
 import org.codehaus.stax2.XMLStreamReader2;
+import com.github.robtimus.obfuscation.xml.XMLObfuscator.ElementConfigurer.ObfuscationMode;
 
 //Do not implement XMLStreamParser, the mechanism is too different
 final class WritingObfuscatingXMLParser {
@@ -125,8 +126,8 @@ final class WritingObfuscatingXMLParser {
         QName name = xmlStreamReader.getName();
 
         ObfuscatedElement currentElement = currentElements.peekLast();
-        if (currentElement == null || !currentElement.config.obfuscateNestedElements) {
-            // either not obfuscating any element, or the element should not obfuscate nested elements - check the element itself
+        if (currentElement == null || currentElement.allowsOverriding()) {
+            // either not obfuscating any element, or the element allows overriding obfuscation - check the element itself
             ElementConfig config = configForElement(name);
             if (config != null) {
                 currentElement = new ObfuscatedElement(config);
@@ -213,7 +214,7 @@ final class WritingObfuscatingXMLParser {
             return;
         }
         ObfuscatedElement currentElement = currentElements.getLast();
-        if (!currentElement.config.obfuscateNestedElements && currentElement.depth != 1) {
+        if (!currentElement.obfuscateNestedElements() && currentElement.depth != 1) {
             // nested inside an element that is configured to not have nested elements obfuscated, don't obfuscate
             xmlStreamWriter.writeCharacters(text);
             return;
@@ -298,7 +299,7 @@ final class WritingObfuscatingXMLParser {
             return;
         }
         ObfuscatedElement currentElement = currentElements.getLast();
-        if (!currentElement.config.obfuscateNestedElements && currentElement.depth != 1) {
+        if (!currentElement.obfuscateNestedElements() && currentElement.depth != 1) {
             // nested inside an element that is configured to not have nested elements obfuscated, don't obfuscate
             obfuscateCurrentText = false;
             return;
@@ -358,6 +359,14 @@ final class WritingObfuscatingXMLParser {
         private ObfuscatedElement(ElementConfig config) {
             this.config = config;
             this.depth = 0;
+        }
+
+        private boolean allowsOverriding() {
+            return config.forNestedElements != ObfuscationMode.INHERIT;
+        }
+
+        private boolean obfuscateNestedElements() {
+            return config.forNestedElements != ObfuscationMode.EXCLUDE;
         }
     }
 

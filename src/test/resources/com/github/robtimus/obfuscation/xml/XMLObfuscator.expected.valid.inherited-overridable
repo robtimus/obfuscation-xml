@@ -12,11 +12,11 @@
   <!-- comment -->
   <element xmlns:t="urn:test">
     <t:text t:a="foo" t:b="bar">
-      eee
+      ***
     </t:text>
     <t:cdata t:a="foo">
       <![CDATA[
-        eee
+        ***
       ]]>
     </t:cdata>
     <empty />
@@ -59,11 +59,11 @@
     <!-- comment -->
     <element xmlns:t="urn:test">
       <t:text t:a="foo" t:b="bar">
-        eee
+        ***
       </t:text>
       <t:cdata t:a="foo">
         <![CDATA[
-          eee
+          ***
         ]]>
       </t:cdata>
       <empty />
@@ -96,29 +96,29 @@
   </nested>
   <notObfuscated>
     <text xmlns="urn:test" a="foo" b="bar">
-      text&quot;
+      ***
     </text>
     <cdata xmlns="urn:test" a="foo">
       <![CDATA[
-        Longer data with embedded <xml>
+        ***
       ]]>
     </cdata>
     <empty />
     <!-- comment -->
     <element xmlns:t="urn:test">
       <t:text t:a="foo" t:b="bar">
-        text&quot;
+        ***
       </t:text>
       <t:cdata t:a="foo">
         <![CDATA[
-          Longer data with embedded <xml>
+          ***
         ]]>
       </t:cdata>
       <empty />
       <nested>
-        <elem1>1</elem1>
+        <elem1>eee</elem1>
         <!-- comment -->
-        <elem2>2</elem2>
+        <elem2>eee</elem2>
       </nested>
     </element>
     <notMatchedText>

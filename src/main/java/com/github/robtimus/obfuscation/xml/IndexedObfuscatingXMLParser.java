@@ -27,6 +27,7 @@ import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamReader;
 import org.codehaus.stax2.LocationInfo;
 import com.github.robtimus.obfuscation.Obfuscator;
+import com.github.robtimus.obfuscation.xml.XMLObfuscator.ElementConfigurer.ObfuscationMode;
 
 // Do not implement XMLStreamParser, the mechanism is too different
 final class IndexedObfuscatingXMLParser {
@@ -103,8 +104,8 @@ final class IndexedObfuscatingXMLParser {
 
     private void startElement(int startIndex, int endIndex) throws IOException {
         ObfuscatedElement currentElement = currentElements.peekLast();
-        if (currentElement == null || !currentElement.config.obfuscateNestedElements) {
-            // either not obfuscating any element, or the element should not obfuscate nested elements - check the element itself
+        if (currentElement == null || currentElement.allowsOverriding()) {
+            // either not obfuscating any element, or the element allows overriding obfuscation - check the element itself
             ElementConfig config = configForCurrentElement();
             if (config != null) {
                 currentElement = new ObfuscatedElement(config);
@@ -159,7 +160,7 @@ final class IndexedObfuscatingXMLParser {
             return endIndex;
         }
         ObfuscatedElement currentElement = currentElements.getLast();
-        if (!currentElement.config.obfuscateNestedElements && currentElement.depth != 1) {
+        if (!currentElement.obfuscateNestedElements() && currentElement.depth != 1) {
             // nested inside an element that is configured to not have nested elements obfuscated, don't obfuscate
             appendUnobfuscated(startIndex, endIndex);
             return endIndex;
@@ -244,6 +245,14 @@ final class IndexedObfuscatingXMLParser {
         private ObfuscatedElement(ElementConfig config) {
             this.config = config;
             this.depth = 0;
+        }
+
+        private boolean allowsOverriding() {
+            return config.forNestedElements != ObfuscationMode.INHERIT;
+        }
+
+        private boolean obfuscateNestedElements() {
+            return config.forNestedElements != ObfuscationMode.EXCLUDE;
         }
     }
 }

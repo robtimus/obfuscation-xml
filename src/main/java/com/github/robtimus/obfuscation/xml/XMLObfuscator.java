@@ -55,6 +55,7 @@ import com.github.robtimus.obfuscation.support.CaseSensitivity;
 import com.github.robtimus.obfuscation.support.CountingReader;
 import com.github.robtimus.obfuscation.support.LimitAppendable;
 import com.github.robtimus.obfuscation.support.MapBuilder;
+import com.github.robtimus.obfuscation.xml.XMLObfuscator.ElementConfigurer.ObfuscationMode;
 
 /**
  * An obfuscator that obfuscates XML elements in {@link CharSequence CharSequences} or the contents of {@link Reader Readers}.
@@ -473,13 +474,15 @@ public final class XMLObfuscator extends Obfuscator {
 
         /**
          * Indicates that by default nested elements will not be obfuscated.
-         * This can be overridden per element using {@link ElementConfigurer#includeNestedElements()}
+         * This method is an alias for {@link #forNestedElementsByDefault(ObfuscationMode)} in combination with {@link ObfuscationMode#EXCLUDE}.
          * <p>
          * Note that this will not change what will be obfuscated for any element that was already added.
          *
          * @return This object.
          */
-        Builder excludeNestedElementsByDefault();
+        default Builder excludeNestedElementsByDefault() {
+            return forNestedElementsByDefault(ObfuscationMode.EXCLUDE);
+        }
 
         /**
          * Indicates that by default nested elements will be obfuscated (default).
@@ -495,13 +498,28 @@ public final class XMLObfuscator extends Obfuscator {
 
         /**
          * Indicates that by default nested elements will be obfuscated (default).
-         * This can be overridden per element using {@link ElementConfigurer#excludeNestedElements()}
+         * This method is an alias for {@link #forNestedElementsByDefault(ObfuscationMode)} in combination with {@link ObfuscationMode#INHERIT}.
          * <p>
          * Note that this will not change what will be obfuscated for any element that was already added.
          *
          * @return This object.
          */
-        Builder includeNestedElementsByDefault();
+        default Builder includeNestedElementsByDefault() {
+            return forNestedElementsByDefault(ObfuscationMode.INHERIT);
+        }
+
+        /**
+         * Indicates how to handle nested elements. The default is {@link ObfuscationMode#INHERIT}.
+         * This can be overridden per element using {@link ElementConfigurer#forNestedElements(ObfuscationMode)}
+         * <p>
+         * Note that this will not change what will be obfuscated for any property that was already added.
+         *
+         * @param obfuscationMode The obfuscation mode that determines how to handle nested elements.
+         * @return This object.
+         * @throws NullPointerException If the given obfuscation mode is {@code null}.
+         * @since 1.4
+         */
+        Builder forNestedElementsByDefault(ObfuscationMode obfuscationMode);
 
         /**
          * Sets the warning to include if an {@link XMLStreamException} is thrown.
@@ -564,7 +582,7 @@ public final class XMLObfuscator extends Obfuscator {
          * Indicates that elements nested in elements with the current name will not be obfuscated.
          * This method is shorthand for calling both {@link #excludeNestedElements()}.
          *
-         * @return An object that can be used to configure the element, or continue building {@link XMLObfuscator XMLObfuscators}.
+         * @return This object.
          */
         default ElementConfigurer textOnly() {
             return excludeNestedElements();
@@ -572,16 +590,19 @@ public final class XMLObfuscator extends Obfuscator {
 
         /**
          * Indicates that elements nested in elements with the current name will not be obfuscated.
+         * This method is an alias for {@link #forNestedElements(ObfuscationMode)} in combination with {@link ObfuscationMode#EXCLUDE}.
          *
-         * @return An object that can be used to configure the element, or continue building {@link XMLObfuscator XMLObfuscators}.
+         * @return This object.
          */
-        ElementConfigurer excludeNestedElements();
+        default ElementConfigurer excludeNestedElements() {
+            return forNestedElements(ObfuscationMode.EXCLUDE);
+        }
 
         /**
          * Indicates that elements nested in elements with the current name will be obfuscated.
          * This method is shorthand for calling {@link #includeNestedElements()}.
          *
-         * @return An object that can be used to configure the element, or continue building {@link XMLObfuscator XMLObfuscators}.
+         * @return This object.
          */
         default ElementConfigurer all() {
             return includeNestedElements();
@@ -589,10 +610,43 @@ public final class XMLObfuscator extends Obfuscator {
 
         /**
          * Indicates that elements nested in elements with the current name will be obfuscated.
+         * This method is an alias for {@link #forNestedElements(ObfuscationMode)} in combination with {@link ObfuscationMode#INHERIT}.
          *
-         * @return An object that can be used to configure the element, or continue building {@link XMLObfuscator XMLObfuscators}.
+         * @return This object.
          */
-        ElementConfigurer includeNestedElements();
+        default ElementConfigurer includeNestedElements() {
+            return forNestedElements(ObfuscationMode.INHERIT);
+        }
+
+        /**
+         * Indicates how to handle nested elements. The default is {@link ObfuscationMode#INHERIT}.
+         *
+         * @param obfuscationMode The obfuscation mode that determines how to handle nested elements.
+         * @return This object.
+         * @throws NullPointerException If the given obfuscation mode is {@code null}.
+         * @since 1.4
+         */
+        ElementConfigurer forNestedElements(ObfuscationMode obfuscationMode);
+
+        /**
+         * The possible ways to deal with nested elements.
+         *
+         * @author Rob Spoor
+         * @since 1.4
+         */
+        enum ObfuscationMode {
+            /** Don't obfuscate nested elements, but instead traverse into them. Only the text of the element itself will be obfuscated. **/
+            EXCLUDE,
+
+            /** Use the obfuscator for the text of the element itself as well as the text of all nested elements. **/
+            INHERIT,
+
+            /**
+             * Use the obfuscator for the text of the element itself as well as the text of all nested elements.
+             * If a nested element has its own obfuscator defined this will be used instead.
+             **/
+            INHERIT_OVERRIDABLE,
+        }
     }
 
     /**
@@ -611,7 +665,7 @@ public final class XMLObfuscator extends Obfuscator {
          *
          * @param element The local name of the element.
          * @param obfuscator The obfuscator to use for obfuscating the attribute.
-         * @return An object that can be used to configure the attribute, or continue building {@link XMLObfuscator XMLObfuscators}.
+         * @return This object.
          * @throws NullPointerException If the given element name or obfuscator is {@code null}.
          * @throws IllegalArgumentException If an element with the same local name and the same case sensitivity was already added for the attribute.
          * @since 1.3
@@ -624,7 +678,7 @@ public final class XMLObfuscator extends Obfuscator {
          * @param element The local name of the element.
          * @param obfuscator The obfuscator to use for obfuscating the attribute.
          * @param caseSensitivity The case sensitivity for the element.
-         * @return An object that can be used to configure the attribute, or continue building {@link XMLObfuscator XMLObfuscators}.
+         * @return This object.
          * @throws NullPointerException If the given element name, obfuscator or case sensitivity is {@code null}.
          * @throws IllegalArgumentException If an element with the same local name and the same case sensitivity was already added for the attribute.
          * @since 1.3
@@ -638,7 +692,7 @@ public final class XMLObfuscator extends Obfuscator {
          *
          * @param element The qualified name of the element.
          * @param obfuscator The obfuscator to use for obfuscating the attribute.
-         * @return An object that can be used to configure the attribute, or continue building {@link XMLObfuscator XMLObfuscators}.
+         * @return This object.
          * @throws NullPointerException If the given element name or obfuscator is {@code null}.
          * @throws IllegalArgumentException If an element with the same qualified name was already added for the attribute.
          * @since 1.3
@@ -660,8 +714,7 @@ public final class XMLObfuscator extends Obfuscator {
          * Use {@code null} to omit the indicator.
          *
          * @param pattern The pattern to use as indicator.
-         * @return An object that can be used to configure the handling when the obfuscated result exceeds a pre-defined limit,
-         *         or continue building {@link XMLObfuscator XMLObfuscators}.
+         * @return This object.
          */
         LimitConfigurer withTruncatedIndicator(String pattern);
     }
@@ -681,7 +734,7 @@ public final class XMLObfuscator extends Obfuscator {
 
         // default settings
         private CaseSensitivity defaultCaseSensitivity;
-        private boolean obfuscateNestedElementsByDefault;
+        private ObfuscationMode forNestedElementsByDefault;
 
         // per element / attribute settings
         private String element;
@@ -690,7 +743,7 @@ public final class XMLObfuscator extends Obfuscator {
         private QName qualifiedAttribute;
         private Obfuscator obfuscator;
         private CaseSensitivity caseSensitivity;
-        private boolean obfuscateNestedElements;
+        private ObfuscationMode forNestedElements;
         private MapBuilder<Obfuscator> attributeElements;
         private Map<QName, Obfuscator> qualifiedAttributeElements;
 
@@ -710,7 +763,7 @@ public final class XMLObfuscator extends Obfuscator {
             truncatedIndicator = "... (total: %d)"; //$NON-NLS-1$
 
             defaultCaseSensitivity = CASE_SENSITIVE;
-            obfuscateNestedElementsByDefault = true;
+            forNestedElementsByDefault = ObfuscationMode.INHERIT;
 
             generateXML = false;
         }
@@ -729,7 +782,7 @@ public final class XMLObfuscator extends Obfuscator {
             this.element = element;
             this.obfuscator = obfuscator;
             this.caseSensitivity = caseSensitivity;
-            this.obfuscateNestedElements = obfuscateNestedElementsByDefault;
+            this.forNestedElements = forNestedElementsByDefault;
 
             return this;
         }
@@ -748,7 +801,7 @@ public final class XMLObfuscator extends Obfuscator {
             this.qualifiedElement = element;
             this.obfuscator = obfuscator;
             this.caseSensitivity = null;
-            this.obfuscateNestedElements = obfuscateNestedElementsByDefault;
+            this.forNestedElements = forNestedElementsByDefault;
 
             return this;
         }
@@ -838,26 +891,14 @@ public final class XMLObfuscator extends Obfuscator {
         }
 
         @Override
-        public Builder excludeNestedElementsByDefault() {
-            obfuscateNestedElementsByDefault = false;
+        public Builder forNestedElementsByDefault(ObfuscationMode obfuscationMode) {
+            forNestedElementsByDefault = Objects.requireNonNull(obfuscationMode);
             return this;
         }
 
         @Override
-        public Builder includeNestedElementsByDefault() {
-            obfuscateNestedElementsByDefault = true;
-            return this;
-        }
-
-        @Override
-        public ElementConfigurer excludeNestedElements() {
-            obfuscateNestedElements = false;
-            return this;
-        }
-
-        @Override
-        public ElementConfigurer includeNestedElements() {
-            obfuscateNestedElements = true;
+        public ElementConfigurer forNestedElements(ObfuscationMode obfuscationMode) {
+            forNestedElements = Objects.requireNonNull(obfuscationMode);
             return this;
         }
 
@@ -920,10 +961,10 @@ public final class XMLObfuscator extends Obfuscator {
                 AttributeConfig attributeConfig = new AttributeConfig(obfuscator, attributeElements(), qualifiedAttributeElements());
                 qualifiedAttributes.put(qualifiedAttribute, attributeConfig);
             } else if (element != null) {
-                ElementConfig elementConfig = new ElementConfig(obfuscator, obfuscateNestedElements);
+                ElementConfig elementConfig = new ElementConfig(obfuscator, forNestedElements);
                 elements.withEntry(element, elementConfig, caseSensitivity);
             } else if (qualifiedElement != null) {
-                ElementConfig elementConfig = new ElementConfig(obfuscator, obfuscateNestedElements);
+                ElementConfig elementConfig = new ElementConfig(obfuscator, forNestedElements);
                 qualifiedElements.put(qualifiedElement, elementConfig);
             }
 
@@ -933,7 +974,7 @@ public final class XMLObfuscator extends Obfuscator {
             qualifiedAttribute = null;
             obfuscator = null;
             caseSensitivity = defaultCaseSensitivity;
-            obfuscateNestedElements = obfuscateNestedElementsByDefault;
+            forNestedElements = forNestedElementsByDefault;
             attributeElements = null;
             qualifiedAttributeElements = null;
         }
