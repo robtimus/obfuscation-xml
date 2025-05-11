@@ -9,9 +9,11 @@ Provides functionality for obfuscating XML documents. This can be useful for log
 
 To create an XML obfuscator, simply create a builder, add elements to it, and let it build the final obfuscator:
 
-    Obfuscator obfuscator = XMLObfuscator.builder()
-            .withElement("password", Obfuscator.fixedLength(3))
-            .build();
+```java
+Obfuscator obfuscator = XMLObfuscator.builder()
+        .withElement("password", Obfuscator.fixedLength(3))
+        .build();
+```
 
 An XML obfuscator will only obfuscate text, and ignore leading and trailing whitespace, including inside CDATA sections. It will never obfuscate element tag names, comments, etc.
 
@@ -19,14 +21,16 @@ An XML obfuscator will only obfuscate text, and ignore leading and trailing whit
 
 By default, if an obfuscator is configured for an element, it will be used to obfuscate the text of all nested elements as well. This can be turned on or off for all elements, or per element. For example:
 
-    Obfuscator obfuscator = XMLObfuscator.builder()
-            .textOnlyByDefault()
-            // .textOnlyByDefault() is equivalent to:
-            // .forNestedElementsByDefault(ObfucsationMode.EXCLUDE)
-            .withElement("password", Obfuscator.fixedLength(3))
-            .withElement("complex", Obfuscator.fixedLength(3))
-                    .forNestedElements(ObfucsationMode.INHERIT) // override the default setting
-            .build();
+```java
+Obfuscator obfuscator = XMLObfuscator.builder()
+        .textOnlyByDefault()
+        // .textOnlyByDefault() is equivalent to:
+        // .forNestedElementsByDefault(ObfucsationMode.EXCLUDE)
+        .withElement("password", Obfuscator.fixedLength(3))
+        .withElement("complex", Obfuscator.fixedLength(3))
+                .forNestedElements(ObfucsationMode.INHERIT) // override the default setting
+        .build();
+```
 
 The three possible modes for nested elements are:
 * `EXCLUDE`: don't obfuscate nested elements, but instead traverse into them. Only the text of the element itself will be obfuscated.
@@ -37,14 +41,16 @@ The three possible modes for nested elements are:
 
 If needed, the values of attributes can be obfuscated as well as text. For example:
 
-    Obfuscator obfuscator = XMLObfuscator.builder()
-            // obfuscate any "password" attribute
-            .withAttribute("password", Obfuscator.fixedLength(3))
-            // only obfuscate "username" attributes of "request" elements
-            // the Obfuscator.none() will be applied (so no obfuscation) for any other occurrence
-            .withAttribute("username", Obfuscator.none())
-                .forElement("request", Obfuscator.fixedLength(3))
-            .build();
+```java
+Obfuscator obfuscator = XMLObfuscator.builder()
+        // obfuscate any "password" attribute
+        .withAttribute("password", Obfuscator.fixedLength(3))
+        // only obfuscate "username" attributes of "request" elements
+        // the Obfuscator.none() will be applied (so no obfuscation) for any other occurrence
+        .withAttribute("username", Obfuscator.none())
+            .forElement("request", Obfuscator.fixedLength(3))
+        .build();
+```
 
 Note that if attributes need to be obfuscated, XML obfuscators perform obfuscating by generating new, obfuscated XML documents. The resulting obfuscated XML documents may slightly differ from the original.
 
@@ -52,8 +58,10 @@ Note that if attributes need to be obfuscated, XML obfuscators perform obfuscati
 
 If malformed XML is encountered, obfuscation aborts. It will add a message to the result indicating that obfuscation was aborted. This message can be changed or turned off when creating XML obfuscators:
 
-    Obfuscator obfuscator = XMLObfuscator.builder()
-            .withElement("password", Obfuscator.fixedLength(3))
-            // use null to turn it off
-            .withMalformedXMLWarning("<invalid XML>")
-            .build();
+```java
+Obfuscator obfuscator = XMLObfuscator.builder()
+        .withElement("password", Obfuscator.fixedLength(3))
+        // use null to turn it off
+        .withMalformedXMLWarning("<invalid XML>")
+        .build();
+```
