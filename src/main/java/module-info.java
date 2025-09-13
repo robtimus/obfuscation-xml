@@ -15,6 +15,9 @@
  * limitations under the License.
  */
 
+/**
+ * Provides functionality for obfuscating XML.
+ */
 module com.github.robtimus.obfuscation.xml {
     requires transitive com.github.robtimus.obfuscation;
     requires transitive java.xml;
