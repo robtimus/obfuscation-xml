@@ -42,11 +42,12 @@ class WritingObfuscatingXMLParserTest {
         @Test
         @DisplayName("with public id and system id")
         void testWithPublicIdAndSystemId() throws XMLStreamException {
-            String xml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
-                    + "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\"\n"
-                    + "\"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">\n"
-                    + "<html xmlns=\"http://www.w3.org/1999/xhtml\">\n"
-                    + "</html>";
+            String xml = """
+                    <?xml version="1.0" encoding="utf-8"?>
+                    <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+                    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+                    <html xmlns="http://www.w3.org/1999/xhtml">
+                    </html>""";
 
             // use an XMLResolver that returns null, to allow external access
             XMLStreamReader2 xmlStreamReader = createXmlStreamReader(xml, (publicID, systemID, baseURI, namespace) -> null);
@@ -63,13 +64,14 @@ class WritingObfuscatingXMLParserTest {
         @Test
         @DisplayName("with public id, system id and internal")
         void testWithPublicIdAndSystemIdAndInternal() throws XMLStreamException {
-            String xml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
-                    + "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\"\n"
-                    + "\"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\" [\n"
-                    + "  <!-- an internal subset can be embedded here -->\n"
-                    + "]>"
-                    + "<html xmlns=\"http://www.w3.org/1999/xhtml\">\n"
-                    + "</html>";
+            String xml = """
+                    <?xml version="1.0" encoding="utf-8"?>
+                    <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+                    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd" [
+                      <!-- an internal subset can be embedded here -->
+                    ]>\
+                    <html xmlns="http://www.w3.org/1999/xhtml">
+                    </html>""";
 
             // use an XMLResolver that returns null, to allow external access
             XMLStreamReader2 xmlStreamReader = createXmlStreamReader(xml, (publicID, systemID, baseURI, namespace) -> null);
@@ -77,10 +79,11 @@ class WritingObfuscatingXMLParserTest {
 
             String dtd = getDTD(xmlStreamReader);
 
-            String expected = "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" "
-                    + "\"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\" [\n"
-                    + "  <!-- an internal subset can be embedded here -->\n"
-                    + "]>";
+            String expected = """
+                    <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" \
+                    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd" [
+                      <!-- an internal subset can be embedded here -->
+                    ]>""";
 
             assertEquals(expected, dtd);
         }
@@ -88,21 +91,23 @@ class WritingObfuscatingXMLParserTest {
         @Test
         @DisplayName("with internal")
         void testWithInternal() throws XMLStreamException {
-            String xml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
-                    + "<!DOCTYPE html [\n"
-                    + "  <!-- an internal subset can be embedded here -->\n"
-                    + "]>\n"
-                    + "<html xmlns=\"http://www.w3.org/1999/xhtml\">\n"
-                    + "</html>";
+            String xml = """
+                    <?xml version="1.0" encoding="utf-8"?>
+                    <!DOCTYPE html [
+                      <!-- an internal subset can be embedded here -->
+                    ]>
+                    <html xmlns="http://www.w3.org/1999/xhtml">
+                    </html>""";
 
             XMLStreamReader2 xmlStreamReader = createXmlStreamReader(xml);
             skipToDTD(xmlStreamReader);
 
             String dtd = getDTD(xmlStreamReader);
 
-            String expected = "<!DOCTYPE html [\n"
-                    + "  <!-- an internal subset can be embedded here -->\n"
-                    + "]>";
+            String expected = """
+                    <!DOCTYPE html [
+                      <!-- an internal subset can be embedded here -->
+                    ]>""";
 
             assertEquals(expected, dtd);
         }
@@ -110,10 +115,11 @@ class WritingObfuscatingXMLParserTest {
         @Test
         @DisplayName("minimal")
         void testMinimal() throws XMLStreamException {
-            String xml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
-                    + "<!DOCTYPE html>\n"
-                    + "<html xmlns=\"http://www.w3.org/1999/xhtml\">\n"
-                    + "</html>";
+            String xml = """
+                    <?xml version="1.0" encoding="utf-8"?>
+                    <!DOCTYPE html>
+                    <html xmlns="http://www.w3.org/1999/xhtml">
+                    </html>""";
 
             XMLStreamReader2 xmlStreamReader = createXmlStreamReader(xml);
             skipToDTD(xmlStreamReader);
@@ -128,9 +134,10 @@ class WritingObfuscatingXMLParserTest {
         @Test
         @DisplayName("system id")
         void testWithSystemId() throws XMLStreamException {
-            String xml = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>\n"
-                    + "<!DOCTYPE people_list SYSTEM \"example.dtd\">\n"
-                    + "<people_list />";
+            String xml = """
+                    <?xml version="1.0" encoding="UTF-8" standalone="no"?>
+                    <!DOCTYPE people_list SYSTEM "example.dtd">
+                    <people_list />""";
 
             String dtdContents = "<!ELEMENT people_list EMPTY>";
 

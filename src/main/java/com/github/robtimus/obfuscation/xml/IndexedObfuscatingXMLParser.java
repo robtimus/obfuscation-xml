@@ -89,8 +89,7 @@ final class IndexedObfuscatingXMLParser {
                 endElement(startIndex, endIndex);
                 textIndex = endIndex;
                 break;
-            case XMLStreamConstants.CHARACTERS:
-            case XMLStreamConstants.CDATA:
+            case XMLStreamConstants.CHARACTERS, XMLStreamConstants.CDATA:
                 // text can come in multiple events; don't finish the latest text, just update the index
                 textIndex = text(startIndex, endIndex);
                 break;

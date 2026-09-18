@@ -62,7 +62,7 @@
   </issueManagement>
 
   <properties>
-    <version.java>11</version.java>
+    <version.java>17</version.java>
 
     <version.junit-support>3.1</version.junit-support>
     <version.obfuscation-core>1.5</version.obfuscation-core>

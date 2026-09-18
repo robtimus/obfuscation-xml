@@ -62,7 +62,6 @@ import java.util.List;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 import javax.xml.XMLConstants;
 import javax.xml.namespace.QName;
 import javax.xml.stream.XMLInputFactory;
@@ -186,11 +185,12 @@ class XMLObfuscatorTest {
         @MethodSource("obfuscators")
         @DisplayName("external DTD not allowed")
         void testExternalDTDNotAllowed(Obfuscator obfuscator, @SuppressWarnings("unused") String displayName) {
-            String xml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
-                    + "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\"\n"
-                    + "\"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">\n"
-                    + "<html xmlns=\"http://www.w3.org/1999/xhtml\">\n"
-                    + "</html>";
+            String xml = """
+                    <?xml version="1.0" encoding="utf-8"?>
+                    <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+                    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+                    <html xmlns="http://www.w3.org/1999/xhtml">
+                    </html>""";
 
             String obfuscated = obfuscator.obfuscateText(xml).toString();
             assertThat(obfuscated, endsWith(Messages.XMLObfuscator.malformedXML.text()));
@@ -201,7 +201,7 @@ class XMLObfuscatorTest {
 
             List<LoggingEvent> warningEvents = loggingEvents.getAllValues().stream()
                     .filter(event -> event.getLevel() == Level.WARN)
-                    .collect(Collectors.toList());
+                    .toList();
 
             assertFalse(warningEvents.isEmpty());
 
@@ -222,13 +222,14 @@ class XMLObfuscatorTest {
         @MethodSource("obfuscators")
         @DisplayName("external entity not allowed")
         void testExternalEntityNotAllowed(Obfuscator obfuscator, @SuppressWarnings("unused") String displayName) {
-            String xml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
-                    + "<!DOCTYPE html [\n"
-                    + "  <!ENTITY name SYSTEM \"irrelevant\">\n"
-                    + "]>\n"
-                    + "<html xmlns=\"http://www.w3.org/1999/xhtml\">\n"
-                    + "&name;\n"
-                    + "</html>";
+            String xml = """
+                    <?xml version="1.0" encoding="utf-8"?>
+                    <!DOCTYPE html [
+                      <!ENTITY name SYSTEM "irrelevant">
+                    ]>
+                    <html xmlns="http://www.w3.org/1999/xhtml">
+                    &name;
+                    </html>""";
 
             String obfuscated = obfuscator.obfuscateText(xml).toString();
             assertThat(obfuscated, endsWith(Messages.XMLObfuscator.malformedXML.text()));
@@ -239,7 +240,7 @@ class XMLObfuscatorTest {
 
             List<LoggingEvent> warningEvents = loggingEvents.getAllValues().stream()
                     .filter(event -> event.getLevel() == Level.WARN)
-                    .collect(Collectors.toList());
+                    .toList();
 
             assertFalse(warningEvents.isEmpty());
 
@@ -523,7 +524,7 @@ class XMLObfuscatorTest {
             }
         }
 
-        private class TruncatedXMLTest extends ObfuscatorTest {
+        private abstract static class TruncatedXMLTest extends ObfuscatorTest {
 
             TruncatedXMLTest(String expectedResource, boolean includeWarning) {
                 super("XMLObfuscator.input.truncated", expectedResource, () -> createObfuscator(includeWarning));
@@ -679,7 +680,7 @@ class XMLObfuscatorTest {
                 }
             }
 
-            private class TruncatedXMLTest extends ObfuscatorTest {
+            private abstract static class TruncatedXMLTest extends ObfuscatorTest {
 
                 TruncatedXMLTest(String expectedResource, boolean includeWarning) {
                     super("XMLObfuscator.input.truncated", expectedResource, () -> createObfuscatorWithAttributes(includeWarning));
@@ -956,7 +957,7 @@ class XMLObfuscatorTest {
             List<String> traceMessages = loggingEvents.getAllValues().stream()
                     .filter(event -> event.getLevel() == Level.TRACE)
                     .map(LoggingEvent::getRenderedMessage)
-                    .collect(Collectors.toList());
+                    .toList();
 
             assertThat(traceMessages, hasSize(0));
         }
@@ -969,7 +970,7 @@ class XMLObfuscatorTest {
             List<String> traceMessages = loggingEvents.getAllValues().stream()
                     .filter(event -> event.getLevel() == Level.TRACE)
                     .map(LoggingEvent::getRenderedMessage)
-                    .collect(Collectors.toList());
+                    .toList();
 
             assertThat(traceMessages, hasSize(greaterThanOrEqualTo(1)));
 
@@ -977,7 +978,7 @@ class XMLObfuscatorTest {
             int expectedMax = (int) (Source.OfReader.PREFERRED_MAX_BUFFER_SIZE * 1.05D);
             List<Integer> sizes = traceMessages.stream()
                     .map(message -> extractSize(message, pattern))
-                    .collect(Collectors.toList());
+                    .toList();
             assertThat(sizes, everyItem(lessThanOrEqualTo(expectedMax)));
         }
 
