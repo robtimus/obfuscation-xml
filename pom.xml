@@ -69,7 +69,7 @@
     <version.obfuscation-core>1.5</version.obfuscation-core>
     <version.pioneer>2.3.0</version.pioneer>
     <version.slf4j>1.7.36</version.slf4j>
-    <version.woodstox-core>6.5.1</version.woodstox-core>
+    <version.woodstox-core>7.2.2</version.woodstox-core>
   </properties>
 
   <dependencies>

@@ -122,7 +122,7 @@ public final class XMLObfuscator extends Obfuscator {
         return inputFactory;
     }
 
-    private static void setPropertyIfSupported(XMLInputFactory inputFactory, String name, Object value) {
+    static void setPropertyIfSupported(XMLInputFactory inputFactory, String name, Object value) {
         if (inputFactory.isPropertySupported(name)) {
             inputFactory.setProperty(name, value);
         } else {

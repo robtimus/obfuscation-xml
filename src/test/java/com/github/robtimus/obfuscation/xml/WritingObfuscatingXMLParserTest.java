@@ -20,6 +20,7 @@ package com.github.robtimus.obfuscation.xml;
 import static com.github.robtimus.obfuscation.xml.WritingObfuscatingXMLParser.getDTD;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import java.io.StringReader;
+import javax.xml.XMLConstants;
 import javax.xml.stream.XMLInputFactory;
 import javax.xml.stream.XMLResolver;
 import javax.xml.stream.XMLStreamConstants;
@@ -49,8 +50,8 @@ class WritingObfuscatingXMLParserTest {
                     <html xmlns="http://www.w3.org/1999/xhtml">
                     </html>""";
 
-            // use an XMLResolver that returns null, to allow external access
-            XMLStreamReader2 xmlStreamReader = createXmlStreamReader(xml, (publicID, systemID, baseURI, namespace) -> null);
+            // Allow http DTDs and use an XMLResolver that returns null, to allow external access
+            XMLStreamReader2 xmlStreamReader = createXmlStreamReader(xml, "http", (publicID, systemID, baseURI, namespace) -> null);
             skipToDTD(xmlStreamReader);
 
             String dtd = getDTD(xmlStreamReader);
@@ -73,8 +74,8 @@ class WritingObfuscatingXMLParserTest {
                     <html xmlns="http://www.w3.org/1999/xhtml">
                     </html>""";
 
-            // use an XMLResolver that returns null, to allow external access
-            XMLStreamReader2 xmlStreamReader = createXmlStreamReader(xml, (publicID, systemID, baseURI, namespace) -> null);
+            // Allow http DTDs and use an XMLResolver that returns null, to allow external access
+            XMLStreamReader2 xmlStreamReader = createXmlStreamReader(xml, "http", (publicID, systemID, baseURI, namespace) -> null);
             skipToDTD(xmlStreamReader);
 
             String dtd = getDTD(xmlStreamReader);
@@ -143,7 +144,7 @@ class WritingObfuscatingXMLParserTest {
 
             XMLResolver dtdResolver = (publicID, systemID, baseURI, namespace) -> new StringReader(dtdContents);
 
-            XMLStreamReader2 xmlStreamReader = createXmlStreamReader(xml, dtdResolver);
+            XMLStreamReader2 xmlStreamReader = createXmlStreamReader(xml, null, dtdResolver);
             skipToDTD(xmlStreamReader);
 
             String dtd = getDTD(xmlStreamReader);
@@ -154,11 +155,14 @@ class WritingObfuscatingXMLParserTest {
         }
 
         private XMLStreamReader2 createXmlStreamReader(String xml) throws XMLStreamException {
-            return createXmlStreamReader(xml, null);
+            return createXmlStreamReader(xml, null, null);
         }
 
-        private XMLStreamReader2 createXmlStreamReader(String xml, XMLResolver dtdResolver) throws XMLStreamException {
+        private XMLStreamReader2 createXmlStreamReader(String xml, String externalDtdSchemas, XMLResolver dtdResolver) throws XMLStreamException {
             XMLInputFactory inputFactory = XMLObfuscator.createInputFactory();
+            if (externalDtdSchemas != null) {
+                XMLObfuscator.setPropertyIfSupported(inputFactory, XMLConstants.ACCESS_EXTERNAL_DTD, externalDtdSchemas);
+            }
             inputFactory.setProperty(XMLInputFactory.IS_SUPPORTING_EXTERNAL_ENTITIES, true);
             if (dtdResolver != null) {
                 inputFactory.setProperty(WstxInputProperties.P_DTD_RESOLVER, dtdResolver);
