@@ -21,7 +21,6 @@ import static com.github.robtimus.obfuscation.support.ObfuscatorUtils.skipLeadin
 import static com.github.robtimus.obfuscation.support.ObfuscatorUtils.skipTrailingWhitespace;
 import java.util.ArrayDeque;
 import java.util.Deque;
-import java.util.Map;
 import javax.xml.namespace.QName;
 import javax.xml.stream.XMLStreamConstants;
 import javax.xml.stream.XMLStreamException;
@@ -29,6 +28,7 @@ import javax.xml.stream.XMLStreamReader;
 import javax.xml.stream.XMLStreamWriter;
 import org.codehaus.stax2.DTDInfo;
 import org.codehaus.stax2.XMLStreamReader2;
+import com.github.robtimus.obfuscation.xml.XMLObfuscator.ElementConfigurer.ContentType;
 import com.github.robtimus.obfuscation.xml.XMLObfuscator.ElementConfigurer.ObfuscationMode;
 
 //Do not implement XMLStreamParser, the mechanism is too different
@@ -37,10 +37,8 @@ final class WritingObfuscatingXMLParser {
     private final XMLStreamReader xmlStreamReader;
     private final XMLStreamWriter xmlStreamWriter;
 
-    private final Map<String, ElementConfig> elements;
-    private final Map<QName, ElementConfig> qualifiedElements;
-    private final Map<String, AttributeConfig> attributes;
-    private final Map<QName, AttributeConfig> qualifiedAttributes;
+    private final Lookup<ElementConfig> elements;
+    private final Lookup<AttributeConfig> attributes;
 
     private final Deque<ObfuscatedElement> currentElements = new ArrayDeque<>();
     private final StringBuilder currentText = new StringBuilder();
@@ -48,15 +46,12 @@ final class WritingObfuscatingXMLParser {
     private boolean obfuscateCurrentText;
 
     WritingObfuscatingXMLParser(XMLStreamReader xmlStreamReader, XMLStreamWriter xmlStreamWriter,
-            Map<String, ElementConfig> elements, Map<QName, ElementConfig> qualifiedElements,
-            Map<String, AttributeConfig> attributes, Map<QName, AttributeConfig> qualifiedAttributes) {
+            Lookup<ElementConfig> elements, Lookup<AttributeConfig> attributes) {
 
         this.xmlStreamReader = xmlStreamReader;
         this.xmlStreamWriter = xmlStreamWriter;
         this.elements = elements;
-        this.qualifiedElements = qualifiedElements;
         this.attributes = attributes;
-        this.qualifiedAttributes = qualifiedAttributes;
     }
 
     void initialize() throws XMLStreamException {
@@ -126,8 +121,9 @@ final class WritingObfuscatingXMLParser {
         QName name = xmlStreamReader.getName();
 
         ObfuscatedElement currentElement = currentElements.peekLast();
-        if (currentElement == null || currentElement.allowsOverriding()) {
-            // either not obfuscating any element, or the element allows overriding obfuscation - check the element itself
+        if (currentElement == null || !currentElement.obfuscateNestedElements() || currentElement.allowsOverriding()) {
+            // either not obfuscating any element, or nested elements should not be obfuscated,
+            // or the element allows overriding obfuscation - check the element itself
             ElementConfig config = configForElement(name);
             if (config != null) {
                 currentElement = new ObfuscatedElement(config);
@@ -161,19 +157,11 @@ final class WritingObfuscatingXMLParser {
     }
 
     private ElementConfig configForElement(QName elementName) {
-        ElementConfig config = qualifiedElements.get(elementName);
-        if (config == null) {
-            config = elements.get(elementName.getLocalPart());
-        }
-        return config;
+        return elements.find(elementName);
     }
 
     private AttributeConfig configForAttribute(QName attributeName) {
-        AttributeConfig config = qualifiedAttributes.get(attributeName);
-        if (config == null) {
-            config = attributes.get(attributeName.getLocalPart());
-        }
-        return config;
+        return attributes.find(attributeName);
     }
 
     private void endElement() throws XMLStreamException {
@@ -214,13 +202,7 @@ final class WritingObfuscatingXMLParser {
             return;
         }
         ObfuscatedElement currentElement = currentElements.getLast();
-        if (!currentElement.obfuscateNestedElements() && currentElement.depth != 1) {
-            // nested inside an element that is configured to not have nested elements obfuscated, don't obfuscate
-            xmlStreamWriter.writeCharacters(text);
-            return;
-        }
-        if (!currentElement.config.performObfuscation) {
-            // the obfuscator is Obfuscator.none(), which means we don't need to obfuscate
+        if (skipObfuscatingText(currentElement)) {
             xmlStreamWriter.writeCharacters(text);
             return;
         }
@@ -299,18 +281,21 @@ final class WritingObfuscatingXMLParser {
             return;
         }
         ObfuscatedElement currentElement = currentElements.getLast();
-        if (!currentElement.obfuscateNestedElements() && currentElement.depth != 1) {
-            // nested inside an element that is configured to not have nested elements obfuscated, don't obfuscate
-            obfuscateCurrentText = false;
-            return;
-        }
-        if (!currentElement.config.performObfuscation) {
-            // the obfuscator is Obfuscator.none(), which means we don't need to obfuscate
+        if (skipObfuscatingText(currentElement)) {
             obfuscateCurrentText = false;
             return;
         }
         // the text should be obfuscated, but not at this time
         obfuscateCurrentText = true;
+    }
+
+    private boolean skipObfuscatingText(ObfuscatedElement currentElement) {
+        // text directly located in the configured element and obfuscating text is disabled,
+        // or nested inside an element that is configured to not have nested elements obfuscated,
+        // or the obfuscator is Obfuscator.none(), which means we don't need to obfuscate
+        return currentElement.depth == 1 && !currentElement.obfuscateText()
+                || currentElement.depth != 1 && !currentElement.obfuscateNestedElements()
+                || !currentElement.config.performObfuscation();
     }
 
     private void finishLatestText() throws XMLStreamException {
@@ -326,7 +311,7 @@ final class WritingObfuscatingXMLParser {
 
             if (obfuscationStart == 0 && obfuscationEnd == textLength) {
                 // obfuscate all
-                String obfuscatedText = currentElement.config.obfuscator.obfuscateText(currentText, obfuscationStart, obfuscationEnd).toString();
+                String obfuscatedText = currentElement.config.obfuscator().obfuscateText(currentText, obfuscationStart, obfuscationEnd).toString();
                 currentTextType.writeText(xmlStreamWriter, obfuscatedText);
             } else if (obfuscationStart == obfuscationEnd) {
                 // obfuscate nothing
@@ -334,7 +319,7 @@ final class WritingObfuscatingXMLParser {
             } else {
                 StringBuilder text = new StringBuilder();
                 text.append(currentText, 0, obfuscationStart);
-                currentElement.config.obfuscator.obfuscateText(currentText, obfuscationStart, obfuscationEnd, text);
+                currentElement.config.obfuscator().obfuscateText(currentText, obfuscationStart, obfuscationEnd, text);
                 text.append(currentText, obfuscationEnd, textLength);
                 currentTextType.writeText(xmlStreamWriter, text.toString());
             }
@@ -362,11 +347,15 @@ final class WritingObfuscatingXMLParser {
         }
 
         private boolean allowsOverriding() {
-            return config.forNestedElements != ObfuscationMode.INHERIT;
+            return config.forNestedElements() != ObfuscationMode.INHERIT;
+        }
+
+        private boolean obfuscateText() {
+            return config.contentTypes().contains(ContentType.TEXT);
         }
 
         private boolean obfuscateNestedElements() {
-            return config.forNestedElements != ObfuscationMode.EXCLUDE;
+            return config.contentTypes().contains(ContentType.NESTED_ELEMENT);
         }
     }
 

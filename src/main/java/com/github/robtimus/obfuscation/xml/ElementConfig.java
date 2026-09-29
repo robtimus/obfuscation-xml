@@ -17,45 +17,28 @@
 
 package com.github.robtimus.obfuscation.xml;
 
+import java.util.Collections;
+import java.util.EnumSet;
 import java.util.Objects;
+import java.util.Set;
 import com.github.robtimus.obfuscation.Obfuscator;
+import com.github.robtimus.obfuscation.xml.XMLObfuscator.ElementConfigurer.ContentType;
 import com.github.robtimus.obfuscation.xml.XMLObfuscator.ElementConfigurer.ObfuscationMode;
 
-final class ElementConfig {
+record ElementConfig(
+        Set<ContentType> contentTypes,
+        Obfuscator obfuscator,
+        ObfuscationMode forNestedElements,
+        boolean performObfuscation
+) {
 
-    final Obfuscator obfuscator;
-    final ObfuscationMode forNestedElements;
-    final boolean performObfuscation;
-
-    ElementConfig(Obfuscator obfuscator, ObfuscationMode forNestedElements) {
-        this.obfuscator = Objects.requireNonNull(obfuscator);
-        this.forNestedElements = Objects.requireNonNull(forNestedElements);
-        this.performObfuscation = !obfuscator.equals(Obfuscator.none());
+    ElementConfig {
+        contentTypes = Collections.unmodifiableSet(EnumSet.copyOf(contentTypes));
+        Objects.requireNonNull(obfuscator);
+        Objects.requireNonNull(forNestedElements);
     }
 
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || o.getClass() != getClass()) {
-            return false;
-        }
-        ElementConfig other = (ElementConfig) o;
-        return obfuscator.equals(other.obfuscator)
-                && forNestedElements == other.forNestedElements;
-    }
-
-    @Override
-    public int hashCode() {
-        return obfuscator.hashCode() ^ forNestedElements.hashCode();
-    }
-
-    @Override
-    @SuppressWarnings("nls")
-    public String toString() {
-        return "[obfuscator=" + obfuscator
-                + ",forObjects=" + forNestedElements
-                + "]";
+    ElementConfig(Set<ContentType> contentTypes, Obfuscator obfuscator, ObfuscationMode forNestedElements) {
+        this(contentTypes, obfuscator, forNestedElements, !obfuscator.equals(Obfuscator.none()));
     }
 }

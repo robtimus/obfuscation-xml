@@ -20,13 +20,12 @@ package com.github.robtimus.obfuscation.xml;
 import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.Deque;
-import java.util.Map;
-import javax.xml.namespace.QName;
 import javax.xml.stream.XMLStreamConstants;
 import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamReader;
 import org.codehaus.stax2.LocationInfo;
 import com.github.robtimus.obfuscation.Obfuscator;
+import com.github.robtimus.obfuscation.xml.XMLObfuscator.ElementConfigurer.ContentType;
 import com.github.robtimus.obfuscation.xml.XMLObfuscator.ElementConfigurer.ObfuscationMode;
 
 // Do not implement XMLStreamParser, the mechanism is too different
@@ -41,8 +40,7 @@ final class IndexedObfuscatingXMLParser {
     private final Source source;
     private final Appendable destination;
 
-    private final Map<String, ElementConfig> elements;
-    private final Map<QName, ElementConfig> qualifiedElements;
+    private final Lookup<ElementConfig> elements;
 
     private final int textOffset;
     private final int textEnd;
@@ -52,7 +50,7 @@ final class IndexedObfuscatingXMLParser {
     private final Deque<ObfuscatedElement> currentElements = new ArrayDeque<>();
 
     IndexedObfuscatingXMLParser(XMLStreamReader xmlStreamReader, Source source, int start, int end, Appendable destination,
-            Map<String, ElementConfig> elements, Map<QName, ElementConfig> qualifiedElements) {
+                                Lookup<ElementConfig> elements) {
 
         this.xmlStreamReader = xmlStreamReader;
         this.locationInfo = (LocationInfo) xmlStreamReader;
@@ -62,7 +60,6 @@ final class IndexedObfuscatingXMLParser {
         this.textIndex = start;
         this.destination = destination;
         this.elements = elements;
-        this.qualifiedElements = qualifiedElements;
     }
 
     boolean hasNext() throws XMLStreamException {
@@ -103,8 +100,9 @@ final class IndexedObfuscatingXMLParser {
 
     private void startElement(int startIndex, int endIndex) throws IOException {
         ObfuscatedElement currentElement = currentElements.peekLast();
-        if (currentElement == null || currentElement.allowsOverriding()) {
-            // either not obfuscating any element, or the element allows overriding obfuscation - check the element itself
+        if (currentElement == null || !currentElement.obfuscateNestedElements() || currentElement.allowsOverriding()) {
+            // either not obfuscating any element, or nested elements should not be obfuscated,
+            // or the element allows overriding obfuscation - check the element itself
             ElementConfig config = configForCurrentElement();
             if (config != null) {
                 currentElement = new ObfuscatedElement(config);
@@ -122,16 +120,7 @@ final class IndexedObfuscatingXMLParser {
     }
 
     private ElementConfig configForCurrentElement() {
-        ElementConfig config = null;
-        if (!qualifiedElements.isEmpty()) {
-            QName elementName = xmlStreamReader.getName();
-            config = qualifiedElements.get(elementName);
-        }
-        if (config == null) {
-            String elementName = xmlStreamReader.getLocalName();
-            config = elements.get(elementName);
-        }
-        return config;
+        return elements.find(xmlStreamReader);
     }
 
     private void endElement(int startIndex, int endIndex) throws IOException {
@@ -159,18 +148,21 @@ final class IndexedObfuscatingXMLParser {
             return endIndex;
         }
         ObfuscatedElement currentElement = currentElements.getLast();
-        if (!currentElement.obfuscateNestedElements() && currentElement.depth != 1) {
-            // nested inside an element that is configured to not have nested elements obfuscated, don't obfuscate
-            appendUnobfuscated(startIndex, endIndex);
-            return endIndex;
-        }
-        if (!currentElement.config.performObfuscation) {
-            // the obfuscator is Obfuscator.none(), which means we don't need to obfuscate
+        if (skipObfuscatingText(currentElement)) {
             appendUnobfuscated(startIndex, endIndex);
             return endIndex;
         }
         // the text should be obfuscated, but not at this time
         return textIndex;
+    }
+
+    private boolean skipObfuscatingText(ObfuscatedElement currentElement) {
+        // text directly located in the configured element and obfuscating text is disabled,
+        // or nested inside an element that is configured to not have nested elements obfuscated,
+        // or the obfuscator is Obfuscator.none(), which means we don't need to obfuscate
+        return currentElement.depth == 1 && !currentElement.obfuscateText()
+                || currentElement.depth != 1 && !currentElement.obfuscateNestedElements()
+                || !currentElement.config.performObfuscation();
     }
 
     private void finishLatestText(int currentEventStart) throws IOException {
@@ -185,7 +177,7 @@ final class IndexedObfuscatingXMLParser {
             // no need to check if obfuscation is necessary
             // the text method should have already ensured that if obfuscation shouldn't be enabled, this branch of code should not be reached
             ObfuscatedElement currentElement = currentElements.getLast();
-            obfuscateText(textIndex, currentEventStart, currentElement.config.obfuscator);
+            obfuscateText(textIndex, currentEventStart, currentElement.config.obfuscator());
         }
     }
 
@@ -247,11 +239,15 @@ final class IndexedObfuscatingXMLParser {
         }
 
         private boolean allowsOverriding() {
-            return config.forNestedElements != ObfuscationMode.INHERIT;
+            return config.forNestedElements() != ObfuscationMode.INHERIT;
+        }
+
+        private boolean obfuscateText() {
+            return config.contentTypes().contains(ContentType.TEXT);
         }
 
         private boolean obfuscateNestedElements() {
-            return config.forNestedElements != ObfuscationMode.EXCLUDE;
+            return config.contentTypes().contains(ContentType.NESTED_ELEMENT);
         }
     }
 }

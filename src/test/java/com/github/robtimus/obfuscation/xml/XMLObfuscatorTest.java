@@ -20,7 +20,6 @@ package com.github.robtimus.obfuscation.xml;
 import static com.github.robtimus.obfuscation.Obfuscator.fixedLength;
 import static com.github.robtimus.obfuscation.Obfuscator.fixedValue;
 import static com.github.robtimus.obfuscation.Obfuscator.none;
-import static com.github.robtimus.obfuscation.support.CaseSensitivity.CASE_SENSITIVE;
 import static com.github.robtimus.obfuscation.xml.XMLObfuscator.builder;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.anyOf;
@@ -59,6 +58,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -84,9 +84,12 @@ import com.ctc.wstx.exc.WstxLazyException;
 import com.github.robtimus.junit.support.extension.testlogger.Reload4jLoggerContext;
 import com.github.robtimus.junit.support.extension.testlogger.TestLogger;
 import com.github.robtimus.obfuscation.Obfuscator;
-import com.github.robtimus.obfuscation.xml.XMLObfuscator.AttributeConfigurer;
 import com.github.robtimus.obfuscation.xml.XMLObfuscator.Builder;
+import com.github.robtimus.obfuscation.xml.XMLObfuscator.ElementConfigurer.ContentType;
 import com.github.robtimus.obfuscation.xml.XMLObfuscator.ElementConfigurer.ObfuscationMode;
+import com.github.robtimus.obfuscation.xml.XMLObfuscator.LocalNameAttributeConfigurer;
+import com.github.robtimus.obfuscation.xml.XMLObfuscator.LocalNameAttributeElementConfigurer;
+import com.github.robtimus.obfuscation.xml.XMLObfuscator.LocalNameElementConfigurer;
 import com.github.robtimus.obfuscation.xml.XMLObfuscatorTest.ObfuscatorTest.UseSourceTruncation;
 
 @SuppressWarnings("nls")
@@ -103,21 +106,28 @@ class XMLObfuscatorTest {
     Arguments[] testEquals() {
         Obfuscator obfuscator = createObfuscator(builder().withElement("test", none()));
         Obfuscator obfuscatorWithAttributes = createObfuscator(builder().withElement("test", none()).withAttribute("a", none()));
+        QName testName = new QName("test");
         return new Arguments[] {
                 arguments(obfuscator, obfuscator, true),
                 arguments(obfuscator, null, false),
                 arguments(obfuscator, createObfuscator(builder().withElement("test", none())), true),
-                arguments(obfuscator, createObfuscator(builder().withElement("test", none(), CASE_SENSITIVE)), true),
-                arguments(obfuscator, createObfuscator(builder().withElement(new QName("test"), none())), false),
+                arguments(obfuscator, createObfuscator(builder().withElement("test", none(), e -> e.caseSensitive())), true),
+                arguments(obfuscator, createObfuscator(builder().withElement(testName, none())), false),
                 arguments(obfuscator, createObfuscator(builder().withElement("test", fixedLength(3))), false),
-                arguments(obfuscator, createObfuscator(builder().withElement("test", none()).excludeNestedElements()), false),
+                arguments(obfuscator,
+                        createObfuscator(builder().withElement("test", none(), e -> e.withContentTypes(ContentType.TEXT))),
+                        false),
+                arguments(obfuscator,
+                        createObfuscator(builder().withElement("test", none(), e -> e.forNestedElements(ObfuscationMode.INHERIT_OVERRIDABLE))),
+                        false),
                 arguments(obfuscator, createObfuscator(builder().withElement("test", none()).withElement(new QName("text"), none())), false),
                 arguments(obfuscator, createObfuscator(builder().withElement("test", none()).withAttribute("test", none())), false),
-                arguments(obfuscator, createObfuscator(builder().withElement("test", none()).withAttribute(new QName("test"), none())), false),
+                arguments(obfuscator, createObfuscator(builder().withElement("test", none()).withAttribute(testName, none())), false),
                 arguments(obfuscator, obfuscatorWithAttributes, false),
                 arguments(obfuscator, createObfuscator(builder().withElement("test", none()).limitTo(Long.MAX_VALUE)), true),
                 arguments(obfuscator, createObfuscator(builder().withElement("test", none()).limitTo(1024)), false),
-                arguments(obfuscator, createObfuscator(builder().withElement("test", none()).limitTo(Long.MAX_VALUE).withTruncatedIndicator(null)),
+                arguments(obfuscator,
+                        createObfuscator(builder().withElement("test", none()).limitTo(Long.MAX_VALUE, l -> l.withTruncatedIndicator(null))),
                         false),
                 arguments(obfuscator, builder().build(), false),
                 arguments(obfuscator, createObfuscator(builder().withElement("test", none()).withMalformedXMLWarning(null)), false),
@@ -129,15 +139,16 @@ class XMLObfuscatorTest {
                 arguments(obfuscatorWithAttributes, obfuscator, false),
                 arguments(obfuscatorWithAttributes, createObfuscator(builder().withElement("test", none()).withAttribute("a", none())), true),
                 arguments(obfuscatorWithAttributes,
-                        createObfuscator(builder().withElement("test", none()).withAttribute("a", none(), CASE_SENSITIVE)), true),
+                        createObfuscator(builder().withElement("test", none()).withAttribute("a", none(), a -> a.caseSensitive())), true),
                 arguments(obfuscatorWithAttributes, createObfuscator(builder().withElement("test", none()).withAttribute(new QName("a"), none())),
                         false),
                 arguments(obfuscatorWithAttributes, createObfuscator(builder().withElement("test", none()).withAttribute("a", fixedLength(3))),
                         false),
                 arguments(obfuscatorWithAttributes,
-                        createObfuscator(builder().withElement("test", none()).withAttribute("a", none()).forElement("test", none())), false),
+                        createObfuscator(builder().withElement("test", none()).withAttribute("a", none(), a -> a.forElement("test", none()))),
+                        false),
                 arguments(obfuscatorWithAttributes,
-                        createObfuscator(builder().withElement("test", none()).withAttribute("a", none()).forElement(new QName("test"), none())),
+                        createObfuscator(builder().withElement("test", none()).withAttribute("a", none(), a -> a.forElement(testName, none()))),
                         false),
         };
     }
@@ -323,9 +334,10 @@ class XMLObfuscatorTest {
             String localName = "test";
             Obfuscator obfuscator = fixedLength(3);
 
-            AttributeConfigurer builder = builder().withAttribute("a", obfuscator);
-            assertDoesNotThrow(() -> builder.forElement(new QName(localName), obfuscator));
-            assertDoesNotThrow(() -> builder.forElement(new QName(XMLConstants.XML_NS_URI, localName), obfuscator));
+            builder().withAttribute("a", obfuscator, a -> {
+                assertDoesNotThrow(() -> a.forElement(new QName(localName), obfuscator));
+                assertDoesNotThrow(() -> a.forElement(new QName(XMLConstants.XML_NS_URI, localName), obfuscator));
+            });
         }
 
         @Test
@@ -334,16 +346,20 @@ class XMLObfuscatorTest {
             QName element = new QName("test");
             Obfuscator obfuscator = fixedLength(3);
 
-            AttributeConfigurer builder = builder().withAttribute("a", obfuscator);
-            assertDoesNotThrow(() -> builder.forElement(element, obfuscator));
-            IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> builder.forElement(element, obfuscator));
-            assertEquals(Messages.XMLObfuscator.duplicateElement(element), exception.getMessage());
+            Builder builder = builder();
+
+            builder.withAttribute("a", obfuscator, a -> {
+                assertDoesNotThrow(() -> a.forElement(element, obfuscator));
+                IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> a.forElement(element, obfuscator));
+                assertEquals(Messages.XMLObfuscator.duplicateElement(element), exception.getMessage());
+            });
 
             // test for another attribute the same name can be reused
-            AttributeConfigurer builder2 = builder.withAttribute("a2", obfuscator);
-            assertDoesNotThrow(() -> builder2.forElement(element, obfuscator));
-            exception = assertThrows(IllegalArgumentException.class, () -> builder2.forElement(element, obfuscator));
-            assertEquals(Messages.XMLObfuscator.duplicateElement(element), exception.getMessage());
+            builder.withAttribute("a2", obfuscator, a -> {
+                assertDoesNotThrow(() -> a.forElement(element, obfuscator));
+                IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> a.forElement(element, obfuscator));
+                assertEquals(Messages.XMLObfuscator.duplicateElement(element), exception.getMessage());
+            });
         }
 
         @Nested
@@ -387,6 +403,17 @@ class XMLObfuscatorTest {
         }
 
         @Nested
+        @DisplayName("caseInsensitive(), overriding caseSensitiveByDefault()")
+        @TestInstance(Lifecycle.PER_CLASS)
+        class ObfuscatingCaseSensitivelyOverridden extends ObfuscatorTest {
+
+            ObfuscatingCaseSensitivelyOverridden() {
+                super("XMLObfuscator.input.valid.xml", "XMLObfuscator.expected.valid.all",
+                        () -> createObfuscatorCaseInsensitive(builder().caseSensitiveByDefault(), LocalNameElementConfigurer::caseInsensitive));
+            }
+        }
+
+        @Nested
         @DisplayName("using qualified names")
         @TestInstance(Lifecycle.PER_CLASS)
         class ObfuscatingQualified extends ObfuscatorTest {
@@ -414,7 +441,7 @@ class XMLObfuscatorTest {
 
             ObfuscatingAllOverridden() {
                 super("XMLObfuscator.input.valid.xml", "XMLObfuscator.expected.valid.all",
-                        () -> createObfuscatorObfuscatingAll(builder().textOnlyByDefault()));
+                        () -> createObfuscatorObfuscatingAll(builder().withContentTypesByDefault(ContentType.TEXT)));
             }
         }
 
@@ -425,7 +452,7 @@ class XMLObfuscatorTest {
 
             ObfuscatingText() {
                 super("XMLObfuscator.input.valid.xml", "XMLObfuscator.expected.valid.text",
-                        () -> createObfuscator(builder().textOnlyByDefault()));
+                        () -> createObfuscator(builder().withContentTypesByDefault(ContentType.TEXT)));
             }
         }
 
@@ -436,7 +463,29 @@ class XMLObfuscatorTest {
 
             ObfuscatingTextOverridden() {
                 super("XMLObfuscator.input.valid.xml", "XMLObfuscator.expected.valid.text",
-                        () -> createObfuscatorObfuscatingTextOnly(builder().allByDefault()));
+                        () -> createObfuscatorObfuscatingTextOnly(builder().withContentTypesByDefault(ContentType.ALL)));
+            }
+        }
+
+        @Nested
+        @DisplayName("obfuscating nested elements only by default")
+        @TestInstance(Lifecycle.PER_CLASS)
+        class ObfuscatingNestedElements extends ObfuscatorTest {
+
+            ObfuscatingNestedElements() {
+                super("XMLObfuscator.input.valid.xml", "XMLObfuscator.expected.valid.nested-elements",
+                        () -> createObfuscator(builder().withContentTypesByDefault(ContentType.NESTED_ELEMENT)));
+            }
+        }
+
+        @Nested
+        @DisplayName("obfuscating nested elements only, overriding all by default")
+        @TestInstance(Lifecycle.PER_CLASS)
+        class ObfuscatingNestedElementsOverridden extends ObfuscatorTest {
+
+            ObfuscatingNestedElementsOverridden() {
+                super("XMLObfuscator.input.valid.xml", "XMLObfuscator.expected.valid.nested-elements",
+                        () -> createObfuscatorObfuscatingNestedElementsOnly(builder().withContentTypesByDefault(ContentType.ALL)));
             }
         }
 
@@ -474,7 +523,7 @@ class XMLObfuscatorTest {
 
                 WithoutTruncatedIndicator() {
                     super("XMLObfuscator.input.valid.xml", "XMLObfuscator.expected.valid.limited.without-indicator",
-                            () -> createObfuscator(builder().limitTo(289).withTruncatedIndicator(null)));
+                            () -> createObfuscator(builder().limitTo(289, l -> l.withTruncatedIndicator(null))));
                 }
             }
         }
@@ -565,6 +614,19 @@ class XMLObfuscatorTest {
             }
 
             @Nested
+            @DisplayName("caseInsensitive(), overriding caseSensitiveByDefault()")
+            @TestInstance(Lifecycle.PER_CLASS)
+            class ObfuscatingCaseSensitivelyOverridden extends ObfuscatorTest {
+
+                ObfuscatingCaseSensitivelyOverridden() {
+                    super("XMLObfuscator.input.valid.xml", "XMLObfuscator.expected.valid.with-attributes.all",
+                            () -> createObfuscatorCaseInsensitiveWithAttributes(builder().caseSensitiveByDefault(),
+                                    LocalNameElementConfigurer::caseInsensitive, LocalNameAttributeConfigurer::caseInsensitive,
+                                    LocalNameAttributeElementConfigurer::caseInsensitive));
+                }
+            }
+
+            @Nested
             @DisplayName("using qualified names")
             @TestInstance(Lifecycle.PER_CLASS)
             class ObfuscatingQualified extends ObfuscatorTest {
@@ -592,7 +654,7 @@ class XMLObfuscatorTest {
 
                 ObfuscatingAllOverridden() {
                     super("XMLObfuscator.input.valid.xml", "XMLObfuscator.expected.valid.with-attributes.all",
-                            () -> createObfuscatorObfuscatingAllWithAttributes(builder().textOnlyByDefault()));
+                            () -> createObfuscatorObfuscatingAllWithAttributes(builder().withContentTypesByDefault(ContentType.TEXT)));
                 }
             }
 
@@ -603,7 +665,7 @@ class XMLObfuscatorTest {
 
                 ObfuscatingText() {
                     super("XMLObfuscator.input.valid.xml", "XMLObfuscator.expected.valid.with-attributes.text",
-                            () -> createObfuscatorWithAttributes(builder().textOnlyByDefault()));
+                            () -> createObfuscatorWithAttributes(builder().withContentTypesByDefault(ContentType.TEXT)));
                 }
             }
 
@@ -614,7 +676,40 @@ class XMLObfuscatorTest {
 
                 ObfuscatingTextOverridden() {
                     super("XMLObfuscator.input.valid.xml", "XMLObfuscator.expected.valid.with-attributes.text",
-                            () -> createObfuscatorObfuscatingTextOnlyWithAttributes(builder().allByDefault()));
+                            () -> createObfuscatorObfuscatingTextOnlyWithAttributes(builder().withContentTypesByDefault(ContentType.ALL)));
+                }
+            }
+
+            @Nested
+            @DisplayName("obfuscating nested elements only by default")
+            @TestInstance(Lifecycle.PER_CLASS)
+            class ObfuscatingNestedElements extends ObfuscatorTest {
+
+                ObfuscatingNestedElements() {
+                    super("XMLObfuscator.input.valid.xml", "XMLObfuscator.expected.valid.with-attributes.nested-elements",
+                            () -> createObfuscatorWithAttributes(builder().withContentTypesByDefault(ContentType.NESTED_ELEMENT)));
+                }
+            }
+
+            @Nested
+            @DisplayName("obfuscating nested elements, overriding all by default")
+            @TestInstance(Lifecycle.PER_CLASS)
+            class ObfuscatingNestedElementsOverridden extends ObfuscatorTest {
+
+                ObfuscatingNestedElementsOverridden() {
+                    super("XMLObfuscator.input.valid.xml", "XMLObfuscator.expected.valid.with-attributes.nested-elements",
+                            () -> createObfuscatorObfuscatingNestedElementsOnlyWithAttributes(builder().withContentTypesByDefault(ContentType.ALL)));
+                }
+            }
+
+            @Nested
+            @DisplayName("obfuscating with INHERITED_OVERRIDABLE mode")
+            @TestInstance(Lifecycle.PER_CLASS)
+            class ObfuscatingInheritedOverridable extends ObfuscatorTest {
+
+                ObfuscatingInheritedOverridable() {
+                    super("XMLObfuscator.input.valid.xml", "XMLObfuscator.expected.valid.with-attributes.inherited-overridable",
+                            () -> createObfuscatorWithObfuscatorModeWithAttributes(builder(), ObfuscationMode.INHERIT_OVERRIDABLE));
                 }
             }
 
@@ -641,7 +736,7 @@ class XMLObfuscatorTest {
 
                     WithoutTruncatedIndicator() {
                         super("XMLObfuscator.input.valid.xml", "XMLObfuscator.expected.valid.with-attributes.limited.without-indicator",
-                                () -> createObfuscatorWithAttributes(builder().limitTo(289).withTruncatedIndicator(null)));
+                                () -> createObfuscatorWithAttributes(builder().limitTo(289, l -> l.withTruncatedIndicator(null))));
                     }
                 }
             }
@@ -716,7 +811,7 @@ class XMLObfuscatorTest {
 
                 Limited() {
                     super("XMLObfuscator.input.valid.all-events.xml", "XMLObfuscator.expected.valid.all-events.with-attributes.limited",
-                            () -> createObfuscatorWithAttributes(builder().limitTo(30).withTruncatedIndicator(null)));
+                            () -> createObfuscatorWithAttributes(builder().limitTo(30, l -> l.withTruncatedIndicator(null))));
                 }
             }
         }
@@ -1032,6 +1127,17 @@ class XMLObfuscatorTest {
                 .build();
     }
 
+    private static Obfuscator createObfuscatorCaseInsensitive(Builder builder, Consumer<LocalNameElementConfigurer> configurer) {
+        Obfuscator obfuscator = fixedLength(3);
+        return builder
+                .withElement("TEXT", obfuscator, configurer)
+                .withElement("CDATA", obfuscator, configurer)
+                .withElement("EMPTY", obfuscator, configurer)
+                .withElement("ELEMENT", fixedLength(3, 'e'), configurer)
+                .withElement("NOTOBFUSCATED", none(), configurer)
+                .build();
+    }
+
     private static XMLObfuscator createObfuscatorQualifiedNames(Builder builder) {
         Obfuscator obfuscator = fixedLength(3);
         Obfuscator unusedObfuscator = fixedValue("not used");
@@ -1059,22 +1165,33 @@ class XMLObfuscatorTest {
     private static Obfuscator createObfuscatorObfuscatingAll(Builder builder) {
         Obfuscator obfuscator = fixedLength(3);
         return builder
-                .withElement("text", obfuscator).all()
-                .withElement("cdata", obfuscator).all()
-                .withElement("empty", obfuscator).all()
-                .withElement("element", fixedLength(3, 'e')).all()
-                .withElement("notObfuscated", none()).all()
+                .withElement("text", obfuscator, p -> p.withContentTypes(ContentType.ALL).forNestedElements(ObfuscationMode.INHERIT))
+                .withElement("cdata", obfuscator, p -> p.withContentTypes(ContentType.ALL).forNestedElements(ObfuscationMode.INHERIT))
+                .withElement("empty", obfuscator, p -> p.withContentTypes(ContentType.ALL).forNestedElements(ObfuscationMode.INHERIT))
+                .withElement("element", fixedLength(3, 'e'), p -> p.withContentTypes(ContentType.ALL).forNestedElements(ObfuscationMode.INHERIT))
+                .withElement("notObfuscated", none(), p -> p.withContentTypes(ContentType.ALL).forNestedElements(ObfuscationMode.INHERIT))
                 .build();
     }
 
     private static Obfuscator createObfuscatorObfuscatingTextOnly(Builder builder) {
         Obfuscator obfuscator = fixedLength(3);
         return builder
-                .withElement("text", obfuscator).textOnly()
-                .withElement("cdata", obfuscator).textOnly()
-                .withElement("empty", obfuscator).textOnly()
-                .withElement("element", fixedLength(3, 'e')).textOnly()
-                .withElement("notObfuscated", none()).textOnly()
+                .withElement("text", obfuscator, p -> p.withContentTypes(ContentType.TEXT))
+                .withElement("cdata", obfuscator, p -> p.withContentTypes(ContentType.TEXT))
+                .withElement("empty", obfuscator, p -> p.withContentTypes(ContentType.TEXT))
+                .withElement("element", fixedLength(3, 'e'), p -> p.withContentTypes(ContentType.TEXT))
+                .withElement("notObfuscated", none(), p -> p.withContentTypes(ContentType.TEXT))
+                .build();
+    }
+
+    private static Obfuscator createObfuscatorObfuscatingNestedElementsOnly(Builder builder) {
+        Obfuscator obfuscator = fixedLength(3);
+        return builder
+                .withElement("text", obfuscator, p -> p.withContentTypes(ContentType.NESTED_ELEMENT))
+                .withElement("cdata", obfuscator, p -> p.withContentTypes(ContentType.NESTED_ELEMENT))
+                .withElement("empty", obfuscator, p -> p.withContentTypes(ContentType.NESTED_ELEMENT))
+                .withElement("element", fixedLength(3, 'e'), p -> p.withContentTypes(ContentType.NESTED_ELEMENT))
+                .withElement("notObfuscated", none(), p -> p.withContentTypes(ContentType.NESTED_ELEMENT))
                 .build();
     }
 
@@ -1106,41 +1223,66 @@ class XMLObfuscatorTest {
     private static XMLObfuscator createObfuscatorWithAttributes(Builder builder) {
         Obfuscator obfuscator = fixedLength(3);
         return createObfuscator(builder
-                .withAttribute("a", obfuscator)
-                        .forElement("cdata", fixedLength(5)));
+                .withAttribute("a", obfuscator, a -> a
+                        .forElement("cdata", fixedLength(5))));
     }
 
     private static Obfuscator createObfuscatorCaseInsensitiveWithAttributes(Builder builder) {
         Obfuscator obfuscator = fixedLength(3);
         return createObfuscatorCaseInsensitive(builder
-                .withAttribute("A", obfuscator)
-                        .forElement("CDATA", fixedLength(5)));
+                .withAttribute("A", obfuscator, a -> a
+                        .forElement("CDATA", fixedLength(5))));
+    }
+
+    private static Obfuscator createObfuscatorCaseInsensitiveWithAttributes(Builder builder,
+                                                                            Consumer<LocalNameElementConfigurer> elementConfigurer,
+                                                                            Consumer<LocalNameAttributeConfigurer> attributeConfigurer,
+                                                                            Consumer<LocalNameAttributeElementConfigurer> attrElementConfigurer) {
+        Obfuscator obfuscator = fixedLength(3);
+        return createObfuscatorCaseInsensitive(builder
+                .withAttribute("A", obfuscator, attributeConfigurer.andThen(a -> a
+                        .forElement("CDATA", fixedLength(5), attrElementConfigurer))), elementConfigurer);
     }
 
     private static XMLObfuscator createObfuscatorQualifiedNamesWithAttributes(Builder builder) {
         Obfuscator obfuscator = fixedLength(3);
         Obfuscator unusedObfuscator = fixedValue("not used");
         return createObfuscatorQualifiedNames(builder
-                .withAttribute(new QName("urn:test", "a"), obfuscator)
-                        .forElement(new QName("urn:test", "cdata"), fixedLength(5))
-                .withAttribute(new QName(XMLConstants.XML_NS_URI, "a"), unusedObfuscator)
-                        .forElement("cdata", unusedObfuscator)
-                .withAttribute("a", unusedObfuscator)
-                        .forElement("cdata", unusedObfuscator));
+                .withAttribute(new QName("urn:test", "a"), obfuscator, a -> a
+                        .forElement(new QName("urn:test", "cdata"), fixedLength(5)))
+                .withAttribute(new QName(XMLConstants.XML_NS_URI, "a"), unusedObfuscator, a -> a
+                        .forElement("cdata", unusedObfuscator))
+                .withAttribute("a", unusedObfuscator, a -> a
+                        .forElement("cdata", unusedObfuscator)));
     }
 
     private static Obfuscator createObfuscatorObfuscatingAllWithAttributes(Builder builder) {
         Obfuscator obfuscator = fixedLength(3);
         return createObfuscatorObfuscatingAll(builder
-                .withAttribute("a", obfuscator)
-                        .forElement("cdata", fixedLength(5)));
+                .withAttribute("a", obfuscator, a -> a
+                        .forElement("cdata", fixedLength(5))));
     }
 
     private static Obfuscator createObfuscatorObfuscatingTextOnlyWithAttributes(Builder builder) {
         Obfuscator obfuscator = fixedLength(3);
         return createObfuscatorObfuscatingTextOnly(builder
-                .withAttribute("a", obfuscator)
-                        .forElement("cdata", fixedLength(5)));
+                .withAttribute("a", obfuscator, a -> a
+                        .forElement("cdata", fixedLength(5))));
+    }
+
+    private static Obfuscator createObfuscatorObfuscatingNestedElementsOnlyWithAttributes(Builder builder) {
+        Obfuscator obfuscator = fixedLength(3);
+        return createObfuscatorObfuscatingNestedElementsOnly(builder
+                .withAttribute("a", obfuscator, a -> a
+                        .forElement("cdata", fixedLength(5))));
+    }
+
+    private static Obfuscator createObfuscatorWithObfuscatorModeWithAttributes(Builder builder, ObfuscationMode obfuscationMode) {
+        Obfuscator obfuscator = fixedLength(3);
+        return createObfuscatorWithObfuscatorMode(builder
+                .withAttribute("a", obfuscator, a -> a
+                        .forElement("cdata", fixedLength(5))),
+                obfuscationMode);
     }
 
     static String readResource(String name) {

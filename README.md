@@ -22,17 +22,14 @@ By default, if an obfuscator is configured for an element, it will be used to ob
 
 ```java
 Obfuscator obfuscator = XMLObfuscator.builder()
-        .textOnlyByDefault()
-        // .textOnlyByDefault() is equivalent to:
-        // .forNestedElementsByDefault(ObfucsationMode.EXCLUDE)
+        .withContentTypesByDefault(ContentType.TEXT)
         .withElement("password", Obfuscator.fixedLength(3))
-        .withElement("complex", Obfuscator.fixedLength(3))
-                .forNestedElements(ObfucsationMode.INHERIT) // override the default setting
+        .withElement("complex", Obfuscator.fixedLength(3), element -> element
+                .forNestedElements(ObfucsationMode.INHERIT)) // override the default setting
         .build();
 ```
 
-The three possible modes for nested elements are:
-* `EXCLUDE`: don't obfuscate nested elements, but instead traverse into them. Only the text of the element itself will be obfuscated.
+The two possible modes for nested elements are:
 * `INHERIT`: use the obfuscator for the text of the element itself as well as the text of all nested elements.
 * `INHERIT_OVERRIDABLE`: use the obfuscator for the text of the element itself as well as the text of all nested elements. If a nested element has its own obfuscator defined this will be used instead.
 
