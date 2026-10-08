@@ -33,6 +33,19 @@ The two possible modes for nested elements are:
 * `INHERIT`: use the obfuscator for the text of the element itself as well as the text of all nested elements.
 * `INHERIT_OVERRIDABLE`: use the obfuscator for the text of the element itself as well as the text of all nested elements. If a nested element has its own obfuscator defined this will be used instead.
 
+## Different obfuscation for elements with the same name
+
+In certain cases, matching just the element name is not sufficient. For example, using `withElement("value", obfuscator)` will use the given obfuscator for all elements named "value".
+
+To configure different obfuscation for elements with the same name, add a matcher for specific occurrences based on the path to the element. For instance:
+
+```java
+Obfuscator obfuscator = XMLObfuscator.builder()
+        // only match "value" elements if they are nested inside an element with name "email"
+        .withElementPath(ElementPath.endsWith("email", "value"), obfuscatorForEmails)
+        .build();
+```
+
 ## Obfuscation of attributes
 
 If needed, the values of attributes can be obfuscated as well as text. For example:

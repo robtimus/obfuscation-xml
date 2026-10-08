@@ -28,15 +28,19 @@ import static com.github.robtimus.obfuscation.support.ObfuscatorUtils.writer;
 import java.io.IOException;
 import java.io.Reader;
 import java.io.Writer;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.EnumSet;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import javax.xml.XMLConstants;
 import javax.xml.namespace.QName;
@@ -59,9 +63,29 @@ import com.github.robtimus.obfuscation.support.CachingObfuscatingWriter;
 import com.github.robtimus.obfuscation.support.CaseSensitivity;
 import com.github.robtimus.obfuscation.support.CountingReader;
 import com.github.robtimus.obfuscation.support.LimitAppendable;
-import com.github.robtimus.obfuscation.xml.Lookup.MessageProvider;
+import com.github.robtimus.obfuscation.xml.ElementPaths.AndMatcher;
+import com.github.robtimus.obfuscation.xml.ElementPaths.HasLengthAtLeastMatcher;
+import com.github.robtimus.obfuscation.xml.ElementPaths.HasLengthAtMostMatcher;
+import com.github.robtimus.obfuscation.xml.ElementPaths.HasLengthGreaterThanMatcher;
+import com.github.robtimus.obfuscation.xml.ElementPaths.HasLengthLessThanMatcher;
+import com.github.robtimus.obfuscation.xml.ElementPaths.HasLengthMatcher;
+import com.github.robtimus.obfuscation.xml.ElementPaths.LocalNameContainsAtIgnoreCaseMatcher;
+import com.github.robtimus.obfuscation.xml.ElementPaths.LocalNameContainsAtMatcher;
+import com.github.robtimus.obfuscation.xml.ElementPaths.LocalNameEndsWithIgnoreCaseMatcher;
+import com.github.robtimus.obfuscation.xml.ElementPaths.LocalNameEndsWithMatcher;
+import com.github.robtimus.obfuscation.xml.ElementPaths.LocalNameIsIgnoreCaseMatcher;
+import com.github.robtimus.obfuscation.xml.ElementPaths.LocalNameIsMatcher;
+import com.github.robtimus.obfuscation.xml.ElementPaths.LocalNameStartsWithIgnoreCaseMatcher;
+import com.github.robtimus.obfuscation.xml.ElementPaths.LocalNameStartsWithMatcher;
+import com.github.robtimus.obfuscation.xml.ElementPaths.NotMatcher;
+import com.github.robtimus.obfuscation.xml.ElementPaths.OrMatcher;
+import com.github.robtimus.obfuscation.xml.ElementPaths.QualifiedNameContainsAtMatcher;
+import com.github.robtimus.obfuscation.xml.ElementPaths.QualifiedNameEndsWithMatcher;
+import com.github.robtimus.obfuscation.xml.ElementPaths.QualifiedNameIsMatcher;
+import com.github.robtimus.obfuscation.xml.ElementPaths.QualifiedNameStartsWithMatcher;
 import com.github.robtimus.obfuscation.xml.XMLObfuscator.ElementConfigurer.ContentType;
 import com.github.robtimus.obfuscation.xml.XMLObfuscator.ElementConfigurer.ObfuscationMode;
+import com.github.robtimus.obfuscation.xml.XMLObfuscator.ElementPath.Matcher;
 
 /**
  * An obfuscator that obfuscates XML elements in {@link CharSequence CharSequences} or the contents of {@link Reader Readers}.
@@ -86,10 +110,11 @@ public final class XMLObfuscator extends Obfuscator {
     private static final XMLInputFactory INPUT_FACTORY = createInputFactory();
     private static final XMLOutputFactory OUTPUT_FACTORY = createOutputFactory();
 
-    private final Lookup<ElementConfig> elements;
+    private final Lookup.ForElements<ElementConfig> elements;
     private final String elementsRepresentation;
+    private final String elementPathsRepresentation;
 
-    private final Lookup<AttributeConfig> attributes;
+    private final Lookup.ForAttributes<AttributeConfig> attributes;
     private final String attributesRepresentation;
 
     private final String malformedXMLWarning;
@@ -102,6 +127,7 @@ public final class XMLObfuscator extends Obfuscator {
     private XMLObfuscator(Builder builder) {
         elements = builder.elements();
         elementsRepresentation = builder.elementsRepresentation();
+        elementPathsRepresentation = builder.elementPathsRepresentation();
 
         attributes = builder.attributes();
         attributesRepresentation = builder.attributesRepresentation();
@@ -325,6 +351,7 @@ public final class XMLObfuscator extends Obfuscator {
     public String toString() {
         return getClass().getName()
                 + "[elements=" + elementsRepresentation
+                + ",elementPaths=" + elementPathsRepresentation
                 + ",attributes=" + attributesRepresentation
                 + ",malformedXMLWarning=" + malformedXMLWarning
                 + ",limit=" + limit
@@ -349,10 +376,11 @@ public final class XMLObfuscator extends Obfuscator {
      */
     public static final class Builder {
 
-        private final Lookup.Builder<ElementConfig> elements;
+        private final Lookup.ForElements.Builder<ElementConfig> elements;
         private final StringBuilder elementsRepresentation;
+        private final StringBuilder elementPathsRepresentation;
 
-        private final Lookup.Builder<AttributeConfig> attributes;
+        private final Lookup.ForAttributes.Builder<AttributeConfig> attributes;
         private final StringBuilder attributesRepresentation;
 
         private String malformedXMLWarning;
@@ -370,15 +398,17 @@ public final class XMLObfuscator extends Obfuscator {
 
         private final LocalNameElementConfigurer localNameElementConfigurer;
         private final QNameElementConfigurer qualifiedNameElementConfigurer;
+        private final ElementPathConfigurer elementPathConfigurer;
         private final LocalNameAttributeConfigurer localNameAttributeConfigurer;
         private final QNameAttributeConfigurer qualifiedNameAttributeConfigurer;
         private final LimitConfigurer limitConfigurer;
 
         private Builder() {
-            elements = Lookup.builder(Lookup.MessageProvider.ELEMENT);
+            elements = Lookup.forElements();
             elementsRepresentation = new StringBuilder().append('{');
+            elementPathsRepresentation = new StringBuilder().append('{');
 
-            attributes = Lookup.builder(Lookup.MessageProvider.ATTRIBUTE);
+            attributes = Lookup.forAttributes();
             attributesRepresentation = new StringBuilder().append('{');
 
             malformedXMLWarning = Messages.XMLObfuscator.malformedXML.text();
@@ -394,6 +424,7 @@ public final class XMLObfuscator extends Obfuscator {
 
             localNameElementConfigurer = new LocalNameElementConfigurer();
             qualifiedNameElementConfigurer = new QNameElementConfigurer();
+            elementPathConfigurer = new ElementPathConfigurer();
             localNameAttributeConfigurer = new LocalNameAttributeConfigurer();
             qualifiedNameAttributeConfigurer = new QNameAttributeConfigurer();
             limitConfigurer = new LimitConfigurer();
@@ -471,6 +502,45 @@ public final class XMLObfuscator extends Obfuscator {
             return this;
         }
 
+        /**
+         * Adds a matcher for element paths to obfuscate.
+         * This method is equivalent to calling for {@link #withElementPath(Matcher, Obfuscator, Consumer)} with a {@link Consumer} that
+         * does nothing.
+         *
+         * @param matcher The matcher for element paths.
+         * @param obfuscator The obfuscator to use for obfuscating the element.
+         * @return This object.
+         * @throws NullPointerException If the given matcher or obfuscator is {@code null}.
+         * @throws IllegalArgumentException If an equal matcher was already added.
+         * @since 2.0
+         */
+        public Builder withElementPath(ElementPath.Matcher matcher, Obfuscator obfuscator) {
+            addElementPath(matcher, obfuscator, null);
+            return this;
+        }
+
+        /**
+         * Adds a matcher for element paths to obfuscate.
+         * This element will use the defaults set using {@link #withContentTypesByDefault(ContentType, ContentType...)} and
+         * {@link #forNestedElementsByDefault(ObfuscationMode)}, unless explicitly replaced by the given {@link Consumer}.
+         * Any matcher added using this method will take precedence over properties added using {@link #withElement(String, Obfuscator)},
+         * {@link #withElement(String, Obfuscator, Consumer)}, {@link #withElement(QName, Obfuscator)} or
+         * {@link #withElement(QName, Obfuscator, Consumer)}.
+         *
+         * @param matcher The matcher for element paths.
+         * @param obfuscator The obfuscator to use for obfuscating the element.
+         * @param configurer A {@link Consumer} that can be used to update its argument, to override any setting for matched properties.
+         * @return This object.
+         * @throws NullPointerException If the given matcher, obfuscator or {@link Consumer} is {@code null}.
+         * @throws IllegalArgumentException If an equal matcher was already added.
+         * @since 2.0
+         */
+        public Builder withElementPath(ElementPath.Matcher matcher, Obfuscator obfuscator, Consumer<ElementPathConfigurer> configurer) {
+            Objects.requireNonNull(configurer);
+            addElementPath(matcher, obfuscator, configurer);
+            return this;
+        }
+
         private void addElement(String element, Obfuscator obfuscator, Consumer<LocalNameElementConfigurer> configurer) {
             addElement(element, obfuscator, localNameElementConfigurer, configurer,
                     (e, c) -> elements.add(element, c.newConfig(obfuscator), c.caseSensitivity));
@@ -507,6 +577,33 @@ public final class XMLObfuscator extends Obfuscator {
             }
             elementsRepresentation.append(element).append("=[");
             elementConfigurer.appendElementRepresentation(elementsRepresentation, obfuscator);
+            elementsRepresentation.append("]");
+        }
+
+        private void addElementPath(ElementPath.Matcher matcher, Obfuscator obfuscator, Consumer<ElementPathConfigurer> configurer) {
+            Objects.requireNonNull(matcher);
+            Objects.requireNonNull(obfuscator);
+            try {
+                elementPathConfigurer.initialize(this);
+                if (configurer != null) {
+                    configurer.accept(elementPathConfigurer);
+                }
+
+                elements.add(matcher, elementPathConfigurer.newConfig(obfuscator));
+
+                addElementPathRepresentation(matcher, obfuscator);
+            } finally {
+                elementPathConfigurer.reset();
+            }
+        }
+
+        @SuppressWarnings("nls")
+        private void addElementPathRepresentation(ElementPath.Matcher matcher, Obfuscator obfuscator) {
+            if (elementsRepresentation.length() > 1) {
+                elementsRepresentation.append(", ");
+            }
+            elementsRepresentation.append(matcher).append("=[");
+            elementPathConfigurer.appendElementRepresentation(elementsRepresentation, obfuscator);
             elementsRepresentation.append("]");
         }
 
@@ -775,25 +872,30 @@ public final class XMLObfuscator extends Obfuscator {
             return f.apply(this);
         }
 
-        private Lookup<ElementConfig> elements() {
+        private Lookup.ForElements<ElementConfig> elements() {
             return elements.build();
         }
 
         private String elementsRepresentation() {
-            elementsRepresentation.append('}');
-            String result = elementsRepresentation.toString();
-            elementsRepresentation.deleteCharAt(elementsRepresentation.length() - 1);
-            return result;
+            return finishRepresentation(elementsRepresentation);
         }
 
-        private Lookup<AttributeConfig> attributes() {
+        private String elementPathsRepresentation() {
+            return finishRepresentation(elementPathsRepresentation);
+        }
+
+        private Lookup.ForAttributes<AttributeConfig> attributes() {
             return attributes.build();
         }
 
         private String attributesRepresentation() {
-            attributesRepresentation.append('}');
-            String result = attributesRepresentation.toString();
-            attributesRepresentation.deleteCharAt(attributesRepresentation.length() - 1);
+            return finishRepresentation(attributesRepresentation);
+        }
+
+        private String finishRepresentation(StringBuilder representation) {
+            representation.append('}');
+            String result = representation.toString();
+            representation.deleteCharAt(representation.length() - 1);
             return result;
         }
 
@@ -1005,6 +1107,18 @@ public final class XMLObfuscator extends Obfuscator {
     }
 
     /**
+     * An object that can be used to configure an element that should be obfuscated based on its {@linkplain ElementPath path}.
+     *
+     * @author Rob Spoor
+     * @since 2.0
+     */
+    public static final class ElementPathConfigurer extends ElementConfigurer<ElementPathConfigurer> {
+
+        private ElementPathConfigurer() {
+        }
+    }
+
+    /**
      * An object that can be used to configure an attribute that should be obfuscated.
      *
      * @author Rob Spoor
@@ -1014,13 +1128,14 @@ public final class XMLObfuscator extends Obfuscator {
 
         private CaseSensitivity defaultCaseSensitivity;
 
-        private final Lookup.Builder<Obfuscator> attributeElements;
+        private final Lookup.ForElements.Builder<Obfuscator> attributeElements;
         private StringBuilder elementsRepresentation;
+        private StringBuilder elementPathsRepresentation;
 
         private final LocalNameAttributeElementConfigurer localNameAttributeElementConfigurer;
 
         private AttributeConfigurer() {
-            attributeElements = Lookup.builder(MessageProvider.ELEMENT);
+            attributeElements = Lookup.forElements();
             localNameAttributeElementConfigurer = new LocalNameAttributeElementConfigurer();
         }
 
@@ -1123,6 +1238,43 @@ public final class XMLObfuscator extends Obfuscator {
             elementsRepresentation.append("]");
         }
 
+        /**
+         * Sets the obfuscator to use for occurrences of the attribute for specific elements.
+         *
+         * @param matcher The matcher for element paths.
+         * @param obfuscator The obfuscator to use for obfuscating the attribute.
+         * @return This object.
+         * @throws NullPointerException If the given element name or obfuscator is {@code null}.
+         * @throws IllegalArgumentException an equal matcher was already added for the attribute.
+         * @since 2.0
+         */
+        public C forElementPath(ElementPath.Matcher matcher, Obfuscator obfuscator) {
+            addElementPath(matcher, obfuscator);
+            return self();
+        }
+
+        private void addElementPath(ElementPath.Matcher matcher, Obfuscator obfuscator) {
+            Objects.requireNonNull(matcher);
+            Objects.requireNonNull(obfuscator);
+            try {
+                attributeElements.add(matcher, obfuscator);
+
+                addElementPathRepresentation(matcher, obfuscator);
+            } finally {
+                localNameAttributeElementConfigurer.reset();
+            }
+        }
+
+        @SuppressWarnings("nls")
+        private void addElementPathRepresentation(ElementPath.Matcher matcher, Obfuscator obfuscator) {
+            if (elementPathsRepresentation.length() > 1) {
+                elementPathsRepresentation.append(", ");
+            }
+            elementPathsRepresentation.append(matcher).append("=[");
+            elementsRepresentation.append("obfuscator=").append(obfuscator);
+            elementsRepresentation.append("]");
+        }
+
         @SuppressWarnings("unchecked")
         private C self() {
             return (C) this;
@@ -1135,6 +1287,7 @@ public final class XMLObfuscator extends Obfuscator {
         void initialize(Builder builder) {
             defaultCaseSensitivity = builder.defaultCaseSensitivity;
             elementsRepresentation = new StringBuilder().append('{');
+            elementPathsRepresentation = new StringBuilder().append('{');
         }
 
         @SuppressWarnings("nls")
@@ -1144,12 +1297,17 @@ public final class XMLObfuscator extends Obfuscator {
                 // elementsRepresentation starts with a [, add an ending ]
                 target.append(",elements=").append(elementsRepresentation).append(']');
             }
+            if (elementPathsRepresentation.length() > 1) {
+                // elementPathsRepresentation starts with a [, add an ending ]
+                target.append(",elementPaths=").append(elementPathsRepresentation).append(']');
+            }
         }
 
         void reset() {
             defaultCaseSensitivity = null;
             attributeElements.clear();
             elementsRepresentation = null;
+            elementPathsRepresentation = null;
         }
     }
 
@@ -1294,6 +1452,348 @@ public final class XMLObfuscator extends Obfuscator {
 
         private void reset() {
             this.truncatedIndicator = null;
+        }
+    }
+
+    /**
+     * A representation of the path to the current element that is obfuscated by a {@link XMLObfuscator}.
+     * <p>
+     * An element path should only be considered valid while obfuscating. Using it outside a matcher configured with
+     * {@link XMLObfuscator.Builder#withElementPath(Matcher, Obfuscator)} or
+     * {@link XMLObfuscator.Builder#withElementPath(Matcher, Obfuscator, Consumer)} may yield unexpected results.
+     * An element path may be updated several times while obfuscating. It should therefore not escape the matcher or stored in any structure.
+     *
+     * @author Rob Spoor
+     * @since 2.0
+     */
+    public static final class ElementPath implements Iterable<QName> {
+
+        private final List<QName> elements = new ArrayList<>();
+        private final List<QName> readOnlyElements = Collections.unmodifiableList(elements);
+
+        void push(QName element) {
+            elements.add(element);
+        }
+
+        void pop() {
+            elements.remove(elements.size() - 1);
+        }
+
+        List<QName> elements() {
+            return readOnlyElements;
+        }
+
+        /**
+         * Returns the length of the element path. This is the number of elements in the element path.
+         *
+         * @return The length of the element path.
+         */
+        public int length() {
+            return elements.size();
+        }
+
+        /**
+         * Returns a specific element in the element path.
+         *
+         * @param index The index of the element to return.
+         * @return The qualified name of the element at the given index.
+         * @throws IndexOutOfBoundsException If the index is negative or not smaller than the {@linkplain #length() length}.
+         */
+        public QName elementAt(int index) {
+            return elements.get(index);
+        }
+
+        /**
+         * Returns the last element in the element path.
+         *
+         * @return The qualified name of the last element in the element path.
+         */
+        public QName lastElement() {
+            return elements.get(elements.size() - 1);
+        }
+
+        /**
+         * Returns an iterator over the elements in the element path. This iterator does not allow removal of elements.
+         */
+        @Override
+        public Iterator<QName> iterator() {
+            return readOnlyElements.iterator();
+        }
+
+        /**
+         * Returns a string representation of the element path. This representation is a forward slash followed by the qualified names of the element
+         * path joined by forward slashes.
+         *
+         * @return A forward slash followed by the qualified names of the element path joined by forward slashes.
+         */
+        @Override
+        @SuppressWarnings("nls")
+        public String toString() {
+            return ElementPaths.join(elements, "", "");
+        }
+
+        /**
+         * Returns a matcher that checks whether an element path contains exactly one or more elements.
+         *
+         * @param element The qualified name of the first element to check for.
+         * @param additionalElements Additional qualified names of elements to check for.
+         * @return A matcher that checks whether an element path contains exactly the given elements.
+         * @throws NullPointerException If any of the given element names is {@code null}.
+         */
+        public static Matcher is(QName element, QName... additionalElements) {
+            return new QualifiedNameIsMatcher(toList(element, additionalElements));
+        }
+
+        /**
+         * Returns a matcher that checks whether an element path contains exactly one or more elements.
+         *
+         * @param element The local name of the first element to check for.
+         * @param additionalElements Additional local names of elements to check for.
+         * @return A matcher that checks whether an element path contains exactly the given elements.
+         * @throws NullPointerException If any of the given element names is {@code null}.
+         */
+        public static Matcher is(String element, String... additionalElements) {
+            return new LocalNameIsMatcher(toList(element, additionalElements));
+        }
+
+        /**
+         * Returns a matcher that checks whether an element path case insensitively contains exactly one or more elements.
+         *
+         * @param element The local name of the first element to check for.
+         * @param additionalElements Additional local names of elements to check for.
+         * @return A matcher that checks whether an element path case insensitively contains exactly the given elements.
+         * @throws NullPointerException If any of the given element names is {@code null}.
+         */
+        public static Matcher isIgnoreCase(String element, String... additionalElements) {
+            return new LocalNameIsIgnoreCaseMatcher(toList(element, additionalElements));
+        }
+
+        /**
+         * Returns a matcher that checks whether an element path starts with a specific prefix.
+         *
+         * @param element The qualified name of the first element of the prefix to check for.
+         * @param additionalElements Additional qualified names of elements of the prefix to check for.
+         * @return A matcher that checks whether an element path starts with the given elements.
+         * @throws NullPointerException If any of the given element names is {@code null}.
+         */
+        public static Matcher startsWith(QName element, QName... additionalElements) {
+            return new QualifiedNameStartsWithMatcher(toList(element, additionalElements));
+        }
+
+        /**
+         * Returns a matcher that checks whether an element path starts with a specific prefix.
+         *
+         * @param element The local name of the first element of the prefix to check for.
+         * @param additionalElements Additional local names of elements of the prefix to check for.
+         * @return A matcher that checks whether an element path starts with the given elements.
+         * @throws NullPointerException If any of the given element names is {@code null}.
+         */
+        public static Matcher startsWith(String element, String... additionalElements) {
+            return new LocalNameStartsWithMatcher(toList(element, additionalElements));
+        }
+
+        /**
+         * Returns a matcher that checks whether an element path case insensitively starts with a specific prefix.
+         *
+         * @param element The local name of the first element of the prefix to check for.
+         * @param additionalElements Additional local names of elements of the prefix to check for.
+         * @return A matcher that checks whether an element path case insensitively starts with the given elements.
+         * @throws NullPointerException If any of the given element names is {@code null}.
+         */
+        public static Matcher startsWithIgnoreCase(String element, String... additionalElements) {
+            return new LocalNameStartsWithIgnoreCaseMatcher(toList(element, additionalElements));
+        }
+
+        /**
+         * Returns a matcher that checks whether an element path ends with a specific postfix.
+         *
+         * @param element The qualified name of the first element of the postfix to check for.
+         * @param additionalElements Additional qualified names of elements of the postfix to check for.
+         * @return A matcher that checks whether an element path ends with the given elements.
+         * @throws NullPointerException If any of the given element names is {@code null}.
+         */
+        public static Matcher endsWith(QName element, QName... additionalElements) {
+            return new QualifiedNameEndsWithMatcher(toList(element, additionalElements));
+        }
+
+        /**
+         * Returns a matcher that checks whether an element path ends with a specific postfix.
+         *
+         * @param element The local name of the first element of the postfix to check for.
+         * @param additionalElements Additional local names of elements of the postfix to check for.
+         * @return A matcher that checks whether an element path ends with the given elements.
+         * @throws NullPointerException If any of the given element names is {@code null}.
+         */
+        public static Matcher endsWith(String element, String... additionalElements) {
+            return new LocalNameEndsWithMatcher(toList(element, additionalElements));
+        }
+
+        /**
+         * Returns a matcher that checks whether an element path case insensitively ends with a specific postfix.
+         *
+         * @param element The first local name of the element of the postfix to check for.
+         * @param additionalElements Additional local names of elements of the postfix to check for.
+         * @return A matcher that checks whether an element path case insensitively ends with the given elements.
+         * @throws NullPointerException If any of the given element names is {@code null}.
+         */
+        public static Matcher endsWithIgnoreCase(String element, String... additionalElements) {
+            return new LocalNameEndsWithIgnoreCaseMatcher(toList(element, additionalElements));
+        }
+
+        /**
+         * Returns a matcher that checks whether an element path contains one or more elements at a specific index.
+         *
+         * @param index The index where the element should occur.
+         *              If it is negative it will be treated as the number of elements from the end of the element path.
+         * @param element The qualified name of the first element to check for.
+         * @param additionalElements Additional qualified names of elements to check for.
+         * @return A matcher that checks whether an element path contains the given elements at the given index.
+         * @throws NullPointerException If any of the given element names is {@code null}.
+         */
+        public static Matcher containsAt(int index, QName element, QName... additionalElements) {
+            return new QualifiedNameContainsAtMatcher(index, toList(element, additionalElements));
+        }
+
+        /**
+         * Returns a matcher that checks whether an element path contains one or more elements at a specific index.
+         *
+         * @param index The index where the element should occur.
+         *              If it is negative it will be treated as the number of elements from the end of the element path.
+         * @param element The local name of the first element to check for.
+         * @param additionalElements Additional local names of elements to check for.
+         * @return A matcher that checks whether an element path contains the given elements at the given index.
+         * @throws NullPointerException If any of the given element names is {@code null}.
+         */
+        public static Matcher containsAt(int index, String element, String... additionalElements) {
+            return new LocalNameContainsAtMatcher(index, toList(element, additionalElements));
+        }
+
+        /**
+         * Returns a matcher that checks whether an element path case insensitively contains one or more elements at a specific index.
+         *
+         * @param index The index where the element should occur.
+         *              If it is negative it will be treated as the number of elements from the end of the element path.
+         * @param element The local name of the first element to check for.
+         * @param additionalElements Additional local names of elements to check for.
+         * @return A matcher that checks whether an element path case insensitively contains the given elements at the given index.
+         * @throws NullPointerException If any of the given element names is {@code null}.
+         */
+        public static Matcher containsAtIgnoreCase(int index, String element, String... additionalElements) {
+            return new LocalNameContainsAtIgnoreCaseMatcher(index, toList(element, additionalElements));
+        }
+
+        /**
+         * Returns a matcher that checks whether an element path has a specific length.
+         *
+         * @param length The length to check for.
+         * @return A matcher that checks whether an element path has the given length.
+         * @throws IllegalArgumentException If the given length is not at least 1.
+         */
+        public static Matcher hasLength(int length) {
+            if (length < 1) {
+                throw new IllegalArgumentException(length + " < 1"); //$NON-NLS-1$
+            }
+            return new HasLengthMatcher(length);
+        }
+
+        /**
+         * Returns a matcher that checks whether an element path has a length that is greater than or equal to a specific minimum.
+         *
+         * @param min The minimum length to check for, inclusive.
+         * @return A matcher that checks whether an element path has a length that is greater than or equal to the given minimum.
+         * @throws IllegalArgumentException If the given minimum is not at least 1.
+         */
+        public static Matcher hasLengthAtLeast(int min) {
+            if (min < 1) {
+                throw new IllegalArgumentException(min + " < 1"); //$NON-NLS-1$
+            }
+            return new HasLengthAtLeastMatcher(min);
+        }
+
+        /**
+         * Returns a matcher that checks whether an element path has a length that is greater than a specific minimum.
+         *
+         * @param min The minimum length to check for, exclusive.
+         * @return A matcher that checks whether an element path has a length that is greater than the given minimum.
+         * @throws IllegalArgumentException If the given minimum is not at least 1.
+         */
+        public static Matcher hasLengthGreaterThan(int min) {
+            if (min < 1) {
+                throw new IllegalArgumentException(min + " < 1"); //$NON-NLS-1$
+            }
+            return new HasLengthGreaterThanMatcher(min);
+        }
+
+        /**
+         * Returns a matcher that checks whether an element path has a length that is less than or equal to a specific maximum.
+         *
+         * @param max The maximum length to check for, inclusive.
+         * @return A matcher that checks whether an element path has a length that is less than or equal to the given maximum.
+         * @throws IllegalArgumentException If the given maximum is not at least 1.
+         */
+        public static Matcher hasLengthAtMost(int max) {
+            if (max < 1) {
+                throw new IllegalArgumentException(max + " < 1"); //$NON-NLS-1$
+            }
+            return new HasLengthAtMostMatcher(max);
+        }
+
+        /**
+         * Returns a matcher that checks whether an element path has a length that is less than a specific maximum.
+         *
+         * @param max The maximum length to check for, exclusive.
+         * @return A matcher that checks whether an element path has a length that is less than the given maximum.
+         * @throws IllegalArgumentException If the given maximum is not at least 1.
+         */
+        public static Matcher hasLengthLessThan(int max) {
+            if (max < 1) {
+                throw new IllegalArgumentException(max + " < 1"); //$NON-NLS-1$
+            }
+            return new HasLengthLessThanMatcher(max);
+        }
+
+        @SafeVarargs
+        private static <T> List<T> toList(T element, T... additionalElements) {
+            List<T> elements = new ArrayList<>(additionalElements.length + 1);
+            elements.add(Objects.requireNonNull(element));
+            for (T additionalElement : additionalElements) {
+                elements.add(Objects.requireNonNull(additionalElement));
+            }
+            return elements;
+        }
+
+        /**
+         * A matcher for element paths. This extension of {@link Predicate} provides default implementations of {@link Predicate#and(Predicate)},
+         * {@link Predicate#or(Predicate)} and {@link Predicate#negate()} that return objects that define equality, making them more suitable to be
+         * used with {@link XMLObfuscator.Builder#withElementPath(Matcher, Obfuscator)} and
+         * {@link XMLObfuscator.Builder#withElementPath(Matcher, Obfuscator, Consumer)}.
+         * <p>
+         * While this is a functional interface, using lambdas or method references may not define equality as is recommended for use with
+         * {@link XMLObfuscator.Builder#withElementPath(Matcher, Obfuscator)} and
+         * {@link XMLObfuscator.Builder#withElementPath(Matcher, Obfuscator, Consumer)}. Implementations should preferably be provided through
+         * custom classes or records instead.
+         *
+         * @author Rob Spoor
+         * @since 2.0
+         */
+        public interface Matcher extends Predicate<ElementPath> {
+
+            @Override
+            default Matcher and(Predicate<? super ElementPath> other) {
+                Objects.requireNonNull(other);
+                return new AndMatcher(this, other);
+            }
+
+            @Override
+            default Matcher or(Predicate<? super ElementPath> other) {
+                Objects.requireNonNull(other);
+                return new OrMatcher(this, other);
+            }
+
+            @Override
+            default Matcher negate() {
+                return new NotMatcher(this);
+            }
         }
     }
 }

@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="UTF-8"?><root>
+  <text xmlns="urn:test" a="***" b="bar">
+    &lt;TEXT>
+  </text>
+  <cdata xmlns="urn:test" a="***">
+    <![CDATA[
+      Longer data with embedded <xml>
+    ]]>
+  </cdata>
+  <empty/>
+  <!-- comment -->
+  <element>
+    <t:text xmlns:t="urn:test" t:a="***" t:b="bar">
+      &lt;TEXT>
+    </t:text>
+    <t:cdata xmlns:t="urn:test" t:a="***">
+      <![CDATA[
+        Longer data with embedded <xml>
+      ]]>
+    </t:cdata>
+    <empty/>
+    <nested>
+      <elem1>&lt;in-nested></elem1>
+      <!-- comment -->
+      <elem2>&lt;in-nested></elem2>
+    </nested>
+  </element>
+  <notMatchedText>
+    text"
+  </notMatchedText>
+  <notMatchedCdata>
+    <![CDATA[
+      Longer data with embedded <xml>
+    ]]>
+  </notMatchedCdata>
+  <notMatchedEmpty/>
+  <notMatchedElement>
+    <notMatchedText>
+      text"
+    </notMatchedText>
+    <notMatchedCdata>
+      <![CDATA[
+        Longer data with embedded <xml>
+      ]]>
+    </notMatchedCdata>
+    <notMatchedEmpty/>
+  </notMatchedElement>
+  <nested>
+    <text xmlns="urn:test" a="&lt;nested>" b="bar">
+      &lt;nested>
+    </text>
+    <cdata xmlns="urn:test" a="&lt;nested>">
+      <![CDATA[
+        <nested>
+      ]]>
+    </cdata>
+    <empty/>
+    <!-- comment -->
+    <element>
+      <t:text xmlns:t="urn:test" t:a="&lt;nested>" t:b="bar">
+        &lt;nested>
+      </t:text>
+      <t:cdata xmlns:t="urn:test" t:a="&lt;nested>">
+        <![CDATA[
+          <nested>
+        ]]>
+      </t:cdata>
+      <empty/>
+      <nested>
+        <elem1>&lt;nested></elem1>
+        <!-- comment -->
+        <elem2>&lt;nested></elem2>
+      </nested>
+    </element>
+    <notMatchedText>
+      &lt;nested>
+    </notMatchedText>
+    <notMatchedCdata>
+      <![CDATA[
+        <nested>
+      ]]>
+    </notMatchedCdata>
+    <notMatchedEmpty/>
+    <notMatchedElement>
+        <notMatchedText>
+        &lt;nested>
+      </notMatchedText>
+      <notMatchedCdata>
+        <![CDATA[
+          <nested>
+        ]]>
+      </notMatchedCdata>
+      <notMatchedEmpty/>
+    </notMatchedElement>
+  </nested>
+  <notObfuscated>
+    <text xmlns="urn:test" a="***" b="bar">
+      &lt;TEXT>
+    </text>
+    <cdata xmlns="urn:test" a="***">
+      <![CDATA[
+        Longer data with embedded <xml>
+      ]]>
+    </cdata>
+    <empty/>
+    <!-- comment -->
+    <element>
+      <t:text xmlns:t="urn:test" t:a="***" t:b="bar">
+        &lt;TEXT>
+      </t:text>
+      <t:cdata xmlns:t="urn:test" t:a="***">
+        <![CDATA[
+          Longer data with embedded <xml>
+        ]]>
+      </t:cdata>
+      <empty/>
+      <nested>
+        <elem1>&lt;in-nested></elem1>
+        <!-- comment -->
+        <elem2>&lt;in-nested></elem2>
+      </nested>
+    </element>
+    <notMatchedText>
+      text"
+    </notMatchedText>
+    <notMatchedCdata>
+      <![CDATA[
+        Longer data with embedded <xml>
+      ]]>
+    </notMatchedCdata>
+    <notMatchedEmpty/>
+    <notMatchedElement>
+      <notMatchedText>
+        text"
+      </notMatchedText>
+      <notMatchedCdata>
+        <![CDATA[
+          Longer data with embedded <xml>
+        ]]>
+      </notMatchedCdata>
+      <notMatchedEmpty/>
+    </notMatchedElement>
+  </notObfuscated>
+</root>

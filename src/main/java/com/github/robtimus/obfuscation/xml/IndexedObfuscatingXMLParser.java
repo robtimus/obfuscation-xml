@@ -27,6 +27,7 @@ import org.codehaus.stax2.LocationInfo;
 import com.github.robtimus.obfuscation.Obfuscator;
 import com.github.robtimus.obfuscation.xml.XMLObfuscator.ElementConfigurer.ContentType;
 import com.github.robtimus.obfuscation.xml.XMLObfuscator.ElementConfigurer.ObfuscationMode;
+import com.github.robtimus.obfuscation.xml.XMLObfuscator.ElementPath;
 
 // Do not implement XMLStreamParser, the mechanism is too different
 final class IndexedObfuscatingXMLParser {
@@ -40,17 +41,18 @@ final class IndexedObfuscatingXMLParser {
     private final Source source;
     private final Appendable destination;
 
-    private final Lookup<ElementConfig> elements;
+    private final Lookup.ForElements<ElementConfig> elements;
 
     private final int textOffset;
     private final int textEnd;
     private int textIndex;
     private int latestEndIndex;
 
+    private final ElementPath elementPath = new ElementPath();
     private final Deque<ObfuscatedElement> currentElements = new ArrayDeque<>();
 
     IndexedObfuscatingXMLParser(XMLStreamReader xmlStreamReader, Source source, int start, int end, Appendable destination,
-                                Lookup<ElementConfig> elements) {
+                                Lookup.ForElements<ElementConfig> elements) {
 
         this.xmlStreamReader = xmlStreamReader;
         this.locationInfo = (LocationInfo) xmlStreamReader;
@@ -99,6 +101,8 @@ final class IndexedObfuscatingXMLParser {
     }
 
     private void startElement(int startIndex, int endIndex) throws IOException {
+        elementPath.push(xmlStreamReader.getName());
+
         ObfuscatedElement currentElement = currentElements.peekLast();
         if (currentElement == null || !currentElement.obfuscateNestedElements() || currentElement.allowsOverriding()) {
             // either not obfuscating any element, or nested elements should not be obfuscated,
@@ -120,7 +124,7 @@ final class IndexedObfuscatingXMLParser {
     }
 
     private ElementConfig configForCurrentElement() {
-        return elements.find(xmlStreamReader);
+        return elements.find(elementPath);
     }
 
     private void endElement(int startIndex, int endIndex) throws IOException {
@@ -139,6 +143,8 @@ final class IndexedObfuscatingXMLParser {
             // else nested in an element that's being obfuscated
         }
         // else currently no element is being obfuscated
+
+        elementPath.pop();
     }
 
     private int text(int startIndex, int endIndex) throws IOException {

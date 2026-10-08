@@ -18,12 +18,12 @@
 package com.github.robtimus.obfuscation.xml;
 
 import java.util.Objects;
-import javax.xml.namespace.QName;
 import com.github.robtimus.obfuscation.Obfuscator;
+import com.github.robtimus.obfuscation.xml.XMLObfuscator.ElementPath;
 
 record AttributeConfig(
         Obfuscator obfuscator,
-        Lookup<Obfuscator> elements
+        Lookup.ForElements<Obfuscator> elements
 ) {
 
     AttributeConfig {
@@ -31,8 +31,8 @@ record AttributeConfig(
         Objects.requireNonNull(elements);
     }
 
-    Obfuscator obfuscator(QName elementName) {
-        Obfuscator result = elements.find(elementName);
+    Obfuscator obfuscator(ElementPath path) {
+        Obfuscator result = elements.find(path);
         if (result != null) {
             return result;
         }

@@ -19,21 +19,23 @@ package com.github.robtimus.obfuscation.xml;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import javax.xml.namespace.QName;
-import javax.xml.stream.XMLStreamReader;
 import com.github.robtimus.obfuscation.support.CaseSensitivity;
+import com.github.robtimus.obfuscation.xml.XMLObfuscator.ElementPath;
 
-final class Lookup<T> {
+abstract sealed class Lookup<T> {
 
     private final Map<String, T> caseSensitiveValues;
     private final Map<String, T> caseInsensitiveValues;
     private final Map<QName, T> qnameValues;
 
-    private Lookup(Builder<T> builder) {
+    private Lookup(Builder<T, ?, ?> builder) {
         caseSensitiveValues = Map.copyOf(builder.caseSensitiveValues);
         caseInsensitiveValues = caseInsensitiveCopy(builder.caseInsensitiveValues);
         qnameValues = Map.copyOf(builder.qnameValues);
@@ -45,7 +47,7 @@ final class Lookup<T> {
         return Collections.unmodifiableMap(result);
     }
 
-    T find(String name) {
+    private T find(String name) {
         T value = caseSensitiveValues.get(name);
         if (value != null) {
             return value;
@@ -53,7 +55,7 @@ final class Lookup<T> {
         return caseInsensitiveValues.get(name);
     }
 
-    T find(QName name) {
+    private T find(QName name) {
         T value = qnameValues.get(name);
         if (value != null) {
             return value;
@@ -61,26 +63,19 @@ final class Lookup<T> {
         return find(name.getLocalPart());
     }
 
-    T find(XMLStreamReader xmlStreamReader) {
-        return qnameValues.isEmpty()
-                ? find(xmlStreamReader.getLocalName())
-                : find(xmlStreamReader.getName());
-    }
+    @Override
+    public abstract boolean equals(Object o);
 
     @Override
-    public boolean equals(Object o) {
-        return o instanceof Lookup<?> other
-                && equals(other);
-    }
+    public abstract int hashCode();
 
-    private boolean equals(Lookup<?> other) {
+    private boolean hasEqualLookup(Lookup<?> other) {
         return caseSensitiveValues.equals(other.caseSensitiveValues)
                 && caseInsensitiveValues.equals(other.caseInsensitiveValues)
                 && qnameValues.equals(other.qnameValues);
     }
 
-    @Override
-    public int hashCode() {
+    private int calculateHashCode() {
         final int prime = 31;
         int result = 1;
         result = prime * result + caseSensitiveValues.hashCode();
@@ -89,75 +84,168 @@ final class Lookup<T> {
         return result;
     }
 
-    static <T> Builder<T> builder(MessageProvider messageProvider) {
-        return new Builder<>(messageProvider);
+    static <T> ForElements.Builder<T> forElements() {
+        return new ForElements.Builder<>();
     }
 
-    static final class Builder<T> {
+    static <T> ForAttributes.Builder<T> forAttributes() {
+        return new ForAttributes.Builder<>();
+    }
 
-        private final MessageProvider messageProvider;
+    abstract static sealed class Builder<T, L extends Lookup<T>, B extends Builder<T, L, B>> {
 
         private final Map<String, T> caseSensitiveValues;
         private final Map<String, T> caseInsensitiveValues;
         private final Map<QName, T> qnameValues;
 
-        private Builder(MessageProvider messageProvider) {
-            this.messageProvider = messageProvider;
+        private final BiFunction<CaseSensitivity, String, String> duplicateEntryWithCaseSensitivity;
+        private final Function<QName, String> duplicateEntry;
 
+        private Builder(BiFunction<CaseSensitivity, String, String> duplicateEntryWithCaseSensitivity, Function<QName, String> duplicateEntry) {
             caseSensitiveValues = new HashMap<>();
             caseInsensitiveValues = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
             qnameValues = new HashMap<>();
+
+            this.duplicateEntryWithCaseSensitivity = duplicateEntryWithCaseSensitivity;
+            this.duplicateEntry = duplicateEntry;
         }
 
-        Builder<T> add(String key, T value, CaseSensitivity caseSensitivity) {
+        B add(String key, T value, CaseSensitivity caseSensitivity) {
             Map<String, T> map = switch (caseSensitivity) {
                 case CASE_SENSITIVE -> caseSensitiveValues;
                 case CASE_INSENSITIVE -> caseInsensitiveValues;
             };
             map.merge(key, value, (a, b) -> {
-                throw new IllegalArgumentException(messageProvider.duplicateEntry(caseSensitivity, key));
+                throw new IllegalArgumentException(duplicateEntryWithCaseSensitivity.apply(caseSensitivity, key));
             });
-            return this;
+            return self();
         }
 
-        Builder<T> add(QName key, T value) {
+        B add(QName key, T value) {
             qnameValues.merge(key, value, (a, b) -> {
-                throw new IllegalArgumentException(messageProvider.duplicateEntry(key));
+                throw new IllegalArgumentException(duplicateEntry.apply(key));
             });
-            return this;
+            return self();
         }
 
-        Builder<T> clear() {
+        B clear() {
             caseSensitiveValues.clear();
             caseInsensitiveValues.clear();
             qnameValues.clear();
-            return this;
+            return self();
         }
 
-        Lookup<T> build() {
-            return new Lookup<>(this);
+        @SuppressWarnings("unchecked")
+        private B self() {
+            return (B) this;
+        }
+
+        abstract L build();
+    }
+
+    static final class ForElements<T> extends Lookup<T> {
+
+        private final List<ElementPathRegistration<T>> elementPaths;
+
+        private ForElements(Builder<T> builder) {
+            super(builder);
+            elementPaths = builder.elementPaths
+                    .entrySet()
+                    .stream()
+                    .map(e -> new ElementPathRegistration<>(e.getKey(), e.getValue()))
+                    .toList();
+        }
+
+        T find(ElementPath path) {
+            T result = findByElementPath(path);
+            if (result != null) {
+                return result;
+            }
+            return super.find(path.lastElement());
+        }
+
+        private T findByElementPath(ElementPath path) {
+            for (ElementPathRegistration<T> registration : elementPaths) {
+                if (registration.matcher.test(path)) {
+                    return registration.value;
+                }
+            }
+            return null;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            return o instanceof ForElements<?> other
+                    && super.hasEqualLookup(other)
+                    && elementPaths.equals(other.elementPaths);
+        }
+
+        @Override
+        public int hashCode() {
+            final int prime = 31;
+            int result = super.calculateHashCode();
+            result = prime * result + elementPaths.hashCode();
+            return result;
+        }
+
+        static final class Builder<T> extends Lookup.Builder<T, ForElements<T>, Builder<T>> {
+
+            private final Map<ElementPath.Matcher, T> elementPaths;
+
+            private Builder() {
+                super(Messages.XMLObfuscator::duplicateElementWithCaseSensitivity, Messages.XMLObfuscator::duplicateElement);
+                elementPaths = new LinkedHashMap<>();
+            }
+
+            Builder<T> add(ElementPath.Matcher matcher, T value) {
+                elementPaths.merge(matcher, value, (a, b) -> {
+                    throw new IllegalArgumentException(Messages.XMLObfuscator.duplicateElementPathMatcher(matcher));
+                });
+                return this;
+            }
+
+            @Override
+            ForElements<T> build() {
+                return new ForElements<>(this);
+            }
+        }
+
+        private record ElementPathRegistration<T>(ElementPath.Matcher matcher, T value) {
         }
     }
 
-    enum MessageProvider {
-        ELEMENT(Messages.XMLObfuscator::duplicateElementWithCaseSensitivity, Messages.XMLObfuscator::duplicateElement),
-        ATTRIBUTE(Messages.XMLObfuscator::duplicateAttributeWithCaseSensitivity, Messages.XMLObfuscator::duplicateAttribute),
-        ;
+    static final class ForAttributes<T> extends Lookup<T> {
 
-        private BiFunction<CaseSensitivity, String, String> duplicateEntryWithCaseSensitivity;
-        private Function<QName, String> duplicateEntry;
-
-        MessageProvider(BiFunction<CaseSensitivity, String, String> duplicateEntryWithCaseSensitivity, Function<QName, String> duplicateEntry) {
-            this.duplicateEntryWithCaseSensitivity = duplicateEntryWithCaseSensitivity;
-            this.duplicateEntry = duplicateEntry;
+        private ForAttributes(Builder<T> builder) {
+            super(builder);
         }
 
-        private String duplicateEntry(CaseSensitivity caseSensitivity, String key) {
-            return duplicateEntryWithCaseSensitivity.apply(caseSensitivity, key);
+        @SuppressWarnings("squid:S2177") // this method exists to expose the private method
+        T find(QName name) {
+            return super.find(name);
         }
 
-        private String duplicateEntry(QName key) {
-            return duplicateEntry.apply(key);
+        @Override
+        public boolean equals(Object o) {
+            return o instanceof ForAttributes<?> other
+                    && super.hasEqualLookup(other);
+        }
+
+        @Override
+        public int hashCode() {
+            return super.calculateHashCode();
+        }
+
+        static final class Builder<T> extends Lookup.Builder<T, ForAttributes<T>, Builder<T>> {
+
+            private Builder() {
+                super(Messages.XMLObfuscator::duplicateAttributeWithCaseSensitivity, Messages.XMLObfuscator::duplicateAttribute);
+            }
+
+            @Override
+            ForAttributes<T> build() {
+                return new ForAttributes<>(this);
+            }
         }
     }
 }

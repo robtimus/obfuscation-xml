@@ -30,6 +30,7 @@ import org.codehaus.stax2.DTDInfo;
 import org.codehaus.stax2.XMLStreamReader2;
 import com.github.robtimus.obfuscation.xml.XMLObfuscator.ElementConfigurer.ContentType;
 import com.github.robtimus.obfuscation.xml.XMLObfuscator.ElementConfigurer.ObfuscationMode;
+import com.github.robtimus.obfuscation.xml.XMLObfuscator.ElementPath;
 
 //Do not implement XMLStreamParser, the mechanism is too different
 final class WritingObfuscatingXMLParser {
@@ -37,16 +38,17 @@ final class WritingObfuscatingXMLParser {
     private final XMLStreamReader xmlStreamReader;
     private final XMLStreamWriter xmlStreamWriter;
 
-    private final Lookup<ElementConfig> elements;
-    private final Lookup<AttributeConfig> attributes;
+    private final Lookup.ForElements<ElementConfig> elements;
+    private final Lookup.ForAttributes<AttributeConfig> attributes;
 
+    private final ElementPath elementPath = new ElementPath();
     private final Deque<ObfuscatedElement> currentElements = new ArrayDeque<>();
     private final StringBuilder currentText = new StringBuilder();
     private TextType currentTextType = TextType.NONE;
     private boolean obfuscateCurrentText;
 
     WritingObfuscatingXMLParser(XMLStreamReader xmlStreamReader, XMLStreamWriter xmlStreamWriter,
-            Lookup<ElementConfig> elements, Lookup<AttributeConfig> attributes) {
+                                Lookup.ForElements<ElementConfig> elements, Lookup.ForAttributes<AttributeConfig> attributes) {
 
         this.xmlStreamReader = xmlStreamReader;
         this.xmlStreamWriter = xmlStreamWriter;
@@ -119,12 +121,13 @@ final class WritingObfuscatingXMLParser {
 
     private void startElement() throws XMLStreamException {
         QName name = xmlStreamReader.getName();
+        elementPath.push(name);
 
         ObfuscatedElement currentElement = currentElements.peekLast();
         if (currentElement == null || !currentElement.obfuscateNestedElements() || currentElement.allowsOverriding()) {
             // either not obfuscating any element, or nested elements should not be obfuscated,
             // or the element allows overriding obfuscation - check the element itself
-            ElementConfig config = configForElement(name);
+            ElementConfig config = configForElement();
             if (config != null) {
                 currentElement = new ObfuscatedElement(config);
                 currentElements.addLast(currentElement);
@@ -139,10 +142,10 @@ final class WritingObfuscatingXMLParser {
 
         xmlStreamWriter.writeStartElement(name.getPrefix(), name.getLocalPart(), name.getNamespaceURI());
 
-        writeAttributes(name);
+        writeAttributes();
     }
 
-    private void writeAttributes(QName elementName) throws XMLStreamException {
+    private void writeAttributes() throws XMLStreamException {
         int attributeCount = xmlStreamReader.getAttributeCount();
         for (int i = 0; i < attributeCount; i++) {
             QName attributeName = xmlStreamReader.getAttributeName(i);
@@ -150,14 +153,14 @@ final class WritingObfuscatingXMLParser {
 
             AttributeConfig attributeConfig = configForAttribute(attributeName);
             if (attributeConfig != null) {
-                attributeValue = attributeConfig.obfuscator(elementName).obfuscateText(attributeValue).toString();
+                attributeValue = attributeConfig.obfuscator(elementPath).obfuscateText(attributeValue).toString();
             }
             xmlStreamWriter.writeAttribute(attributeName.getPrefix(), attributeName.getNamespaceURI(), attributeName.getLocalPart(), attributeValue);
         }
     }
 
-    private ElementConfig configForElement(QName elementName) {
-        return elements.find(elementName);
+    private ElementConfig configForElement() {
+        return elements.find(elementPath);
     }
 
     private AttributeConfig configForAttribute(QName attributeName) {
@@ -177,6 +180,8 @@ final class WritingObfuscatingXMLParser {
             // else nested in an element that's being obfuscated
         }
         // else currently no element is being obfuscated
+
+        elementPath.pop();
     }
 
     private void processingInstruction() throws XMLStreamException {

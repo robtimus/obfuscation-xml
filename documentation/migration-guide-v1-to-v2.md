@@ -124,7 +124,7 @@ XMLObfuscator.builder()
 
 ## XMLObfuscator.ElementConfigurer
 
-`XMLObfuscator.ElementConfigurer` is no longer an interface but instead an abstract sealed class with subclasses `XMLObfuscator.LocalNameElementConfigurer` and `XMLObfuscator.QNameElementConfigurer`. If you are creating mocks or implementing it directly you need to use actual instances passed to the `Consumer` argument of `XMLObfuscator.Builder.withElement`.
+`XMLObfuscator.ElementConfigurer` is no longer an interface but instead an abstract sealed class with subclasses `XMLObfuscator.LocalNameElementConfigurer`, `XMLObfuscator.QNameElementConfigurer` and `XMLObfuscator.ElementPathConfigurer`. If you are creating mocks or implementing it directly you need to use actual instances passed to the `Consumer` argument of `XMLObfuscator.Builder.withElement`.
 
 ### textOnly, excludeNestedElements, all
 

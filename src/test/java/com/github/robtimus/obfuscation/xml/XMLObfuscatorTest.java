@@ -57,6 +57,7 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -87,6 +88,7 @@ import com.github.robtimus.obfuscation.Obfuscator;
 import com.github.robtimus.obfuscation.xml.XMLObfuscator.Builder;
 import com.github.robtimus.obfuscation.xml.XMLObfuscator.ElementConfigurer.ContentType;
 import com.github.robtimus.obfuscation.xml.XMLObfuscator.ElementConfigurer.ObfuscationMode;
+import com.github.robtimus.obfuscation.xml.XMLObfuscator.ElementPath;
 import com.github.robtimus.obfuscation.xml.XMLObfuscator.LocalNameAttributeConfigurer;
 import com.github.robtimus.obfuscation.xml.XMLObfuscator.LocalNameAttributeElementConfigurer;
 import com.github.robtimus.obfuscation.xml.XMLObfuscator.LocalNameElementConfigurer;
@@ -529,6 +531,17 @@ class XMLObfuscatorTest {
         }
 
         @Nested
+        @DisplayName("paths and name matching")
+        @TestInstance(Lifecycle.PER_CLASS)
+        class PathAndNameMatching extends ObfuscatorTest {
+
+            PathAndNameMatching() {
+                super("XMLObfuscator.input.valid.xml", "XMLObfuscator.expected.valid.path-and-name-matching",
+                        () -> createObfuscatorWithPathsAndNames(builder()));
+            }
+        }
+
+        @Nested
         @DisplayName("generating XML")
         class GenerateXML extends ObfuscatorTest {
 
@@ -738,6 +751,17 @@ class XMLObfuscatorTest {
                         super("XMLObfuscator.input.valid.xml", "XMLObfuscator.expected.valid.with-attributes.limited.without-indicator",
                                 () -> createObfuscatorWithAttributes(builder().limitTo(289, l -> l.withTruncatedIndicator(null))));
                     }
+                }
+            }
+
+            @Nested
+            @DisplayName("paths and name matching")
+            @TestInstance(Lifecycle.PER_CLASS)
+            class PathAndNameMatching extends ObfuscatorTest {
+
+                PathAndNameMatching() {
+                    super("XMLObfuscator.input.valid.xml", "XMLObfuscator.expected.valid.with-attributes.path-and-name-matching",
+                            () -> createObfuscatorWithPathsAndNamesWithAttributes(builder()));
                 }
             }
         }
@@ -1092,6 +1116,97 @@ class XMLObfuscatorTest {
         }
     }
 
+    @Nested
+    @DisplayName("ElementPath structure")
+    class ElementPathStructure {
+
+        @Test
+        @DisplayName("indexed obfuscation")
+        void testIndexedObfuscation() {
+            testElementPathStructure(builder());
+        }
+
+        @Test
+        @DisplayName("writing obfuscation")
+        void testWritingObfuscation() {
+            testElementPathStructure(builder().generateXML());
+        }
+
+        private void testElementPathStructure(XMLObfuscator.Builder builder) {
+            String input = readResource("XMLObfuscator.input.valid.xml");
+
+            List<List<QName>> capturedPaths = new ArrayList<>();
+            ElementPath.Matcher capturingMatcher = p -> {
+                // Need to create a copy
+                capturedPaths.add(List.copyOf(p.elements()));
+                return false;
+            };
+
+            builder.withElementPath(capturingMatcher, Obfuscator.none())
+                    .build()
+                    .obfuscateText(input);
+
+            List<List<QName>> expected = List.of(
+                    List.of(new QName("root")),
+                    List.of(new QName("root"), new QName("urn:test", "text")),
+                    List.of(new QName("root"), new QName("urn:test", "cdata")),
+                    List.of(new QName("root"), new QName("empty")),
+                    List.of(new QName("root"), new QName("element")),
+                    List.of(new QName("root"), new QName("element"), new QName("urn:test", "text")),
+                    List.of(new QName("root"), new QName("element"), new QName("urn:test", "cdata")),
+                    List.of(new QName("root"), new QName("element"), new QName("empty")),
+                    List.of(new QName("root"), new QName("element"), new QName("nested")),
+                    List.of(new QName("root"), new QName("element"), new QName("nested"), new QName("elem1")),
+                    List.of(new QName("root"), new QName("element"), new QName("nested"), new QName("elem2")),
+                    List.of(new QName("root"), new QName("notMatchedText")),
+                    List.of(new QName("root"), new QName("notMatchedCdata")),
+                    List.of(new QName("root"), new QName("notMatchedEmpty")),
+                    List.of(new QName("root"), new QName("notMatchedElement")),
+                    List.of(new QName("root"), new QName("notMatchedElement"), new QName("notMatchedText")),
+                    List.of(new QName("root"), new QName("notMatchedElement"), new QName("notMatchedCdata")),
+                    List.of(new QName("root"), new QName("notMatchedElement"), new QName("notMatchedEmpty")),
+                    List.of(new QName("root"), new QName("nested")),
+                    List.of(new QName("root"), new QName("nested"), new QName("urn:test", "text")),
+                    List.of(new QName("root"), new QName("nested"), new QName("urn:test", "cdata")),
+                    List.of(new QName("root"), new QName("nested"), new QName("empty")),
+                    List.of(new QName("root"), new QName("nested"), new QName("element")),
+                    List.of(new QName("root"), new QName("nested"), new QName("element"), new QName("urn:test", "text")),
+                    List.of(new QName("root"), new QName("nested"), new QName("element"), new QName("urn:test", "cdata")),
+                    List.of(new QName("root"), new QName("nested"), new QName("element"), new QName("empty")),
+                    List.of(new QName("root"), new QName("nested"), new QName("element"), new QName("nested")),
+                    List.of(new QName("root"), new QName("nested"), new QName("element"), new QName("nested"), new QName("elem1")),
+                    List.of(new QName("root"), new QName("nested"), new QName("element"), new QName("nested"), new QName("elem2")),
+                    List.of(new QName("root"), new QName("nested"), new QName("notMatchedText")),
+                    List.of(new QName("root"), new QName("nested"), new QName("notMatchedCdata")),
+                    List.of(new QName("root"), new QName("nested"), new QName("notMatchedEmpty")),
+                    List.of(new QName("root"), new QName("nested"), new QName("notMatchedElement")),
+                    List.of(new QName("root"), new QName("nested"), new QName("notMatchedElement"), new QName("notMatchedText")),
+                    List.of(new QName("root"), new QName("nested"), new QName("notMatchedElement"), new QName("notMatchedCdata")),
+                    List.of(new QName("root"), new QName("nested"), new QName("notMatchedElement"), new QName("notMatchedEmpty")),
+                    List.of(new QName("root"), new QName("notObfuscated")),
+                    List.of(new QName("root"), new QName("notObfuscated"), new QName("urn:test", "text")),
+                    List.of(new QName("root"), new QName("notObfuscated"), new QName("urn:test", "cdata")),
+                    List.of(new QName("root"), new QName("notObfuscated"), new QName("empty")),
+                    List.of(new QName("root"), new QName("notObfuscated"), new QName("element")),
+                    List.of(new QName("root"), new QName("notObfuscated"), new QName("element"), new QName("urn:test", "text")),
+                    List.of(new QName("root"), new QName("notObfuscated"), new QName("element"), new QName("urn:test", "cdata")),
+                    List.of(new QName("root"), new QName("notObfuscated"), new QName("element"), new QName("empty")),
+                    List.of(new QName("root"), new QName("notObfuscated"), new QName("element"), new QName("nested")),
+                    List.of(new QName("root"), new QName("notObfuscated"), new QName("element"), new QName("nested"), new QName("elem1")),
+                    List.of(new QName("root"), new QName("notObfuscated"), new QName("element"), new QName("nested"), new QName("elem2")),
+                    List.of(new QName("root"), new QName("notObfuscated"), new QName("notMatchedText")),
+                    List.of(new QName("root"), new QName("notObfuscated"), new QName("notMatchedCdata")),
+                    List.of(new QName("root"), new QName("notObfuscated"), new QName("notMatchedEmpty")),
+                    List.of(new QName("root"), new QName("notObfuscated"), new QName("notMatchedElement")),
+                    List.of(new QName("root"), new QName("notObfuscated"), new QName("notMatchedElement"), new QName("notMatchedText")),
+                    List.of(new QName("root"), new QName("notObfuscated"), new QName("notMatchedElement"), new QName("notMatchedCdata")),
+                    List.of(new QName("root"), new QName("notObfuscated"), new QName("notMatchedElement"), new QName("notMatchedEmpty"))
+            );
+
+            assertEquals(expected, capturedPaths);
+        }
+    }
+
     private static Obfuscator createObfuscator() {
         return builder()
                 .transform(XMLObfuscatorTest::createObfuscator);
@@ -1283,6 +1398,22 @@ class XMLObfuscatorTest {
                 .withAttribute("a", obfuscator, a -> a
                         .forElement("cdata", fixedLength(5))),
                 obfuscationMode);
+    }
+
+    private static Obfuscator createObfuscatorWithPathsAndNames(Builder builder) {
+        return builder
+                .withElement("text", Obfuscator.fixedValue("<TEXT>"))
+                .withElementPath(ElementPath.startsWith("root", "nested"), Obfuscator.fixedValue("<nested>"), element -> element
+                        .forNestedElements(ObfuscationMode.INHERIT))
+                .withElementPath(ElementPath.containsAt(-2, new QName("nested")), Obfuscator.fixedValue("<in-nested>"))
+                .build();
+    }
+
+    private static Obfuscator createObfuscatorWithPathsAndNamesWithAttributes(Builder builder) {
+        return createObfuscatorWithPathsAndNames(builder
+                .withAttribute("a", Obfuscator.fixedLength(3), a -> a
+                        .forElementPath(ElementPath.startsWith("root", "nested"), Obfuscator.fixedValue("<nested>"))
+                        .forElementPath(ElementPath.containsAt(-2, new QName("nested")), Obfuscator.fixedValue("<in-nested>"))));
     }
 
     static String readResource(String name) {
