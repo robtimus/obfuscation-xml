@@ -227,3 +227,7 @@ XMLObfuscator.builder()
         .withElement("foo", obfuscator, element -> element
                 .withContentTypes(ContentType.TEXT))
 ```
+
+## Entity references
+
+To prevent XML External Entity (XXE) attacks, `XMLObfuscator` by default no longer resolves entities. If needed it can be re-enabled using new method `resolveEntityReferences` of class `XMLObfuscator.Builder`.

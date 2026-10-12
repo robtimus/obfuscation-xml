@@ -107,7 +107,9 @@ public final class XMLObfuscator extends Obfuscator {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(XMLObfuscator.class);
 
-    private static final XMLInputFactory INPUT_FACTORY = createInputFactory();
+    private static final Map<Boolean, XMLInputFactory> INPUT_FACTORIES = Map.of(
+            true, createInputFactory(true),
+            false, createInputFactory(false));
     private static final XMLOutputFactory OUTPUT_FACTORY = createOutputFactory();
 
     private final Lookup.ForElements<ElementConfig> elements;
@@ -117,6 +119,7 @@ public final class XMLObfuscator extends Obfuscator {
     private final Lookup.ForAttributes<AttributeConfig> attributes;
     private final String attributesRepresentation;
 
+    private final boolean resolveEntityReferences;
     private final String malformedXMLWarning;
 
     private final long limit;
@@ -132,6 +135,7 @@ public final class XMLObfuscator extends Obfuscator {
         attributes = builder.attributes();
         attributesRepresentation = builder.attributesRepresentation();
 
+        resolveEntityReferences = builder.resolveEntityReferences;
         malformedXMLWarning = builder.malformedXMLWarning;
 
         limit = builder.limit;
@@ -140,7 +144,7 @@ public final class XMLObfuscator extends Obfuscator {
         generateXML = builder.generateXML;
     }
 
-    static XMLInputFactory createInputFactory() {
+    static XMLInputFactory createInputFactory(boolean resolveEntityReferences) {
         // Explicitly use Woodstox; any other implementation may not produce the correct locations
         XMLInputFactory inputFactory = new WstxInputFactory();
         setPropertyIfSupported(inputFactory, XMLConstants.ACCESS_EXTERNAL_DTD, ""); //$NON-NLS-1$
@@ -148,6 +152,7 @@ public final class XMLObfuscator extends Obfuscator {
         setPropertyIfSupported(inputFactory, XMLConstants.ACCESS_EXTERNAL_STYLESHEET, ""); //$NON-NLS-1$
         setPropertyIfSupported(inputFactory, XMLConstants.FEATURE_SECURE_PROCESSING, true);
         setPropertyIfSupported(inputFactory, XMLInputFactory.IS_SUPPORTING_EXTERNAL_ENTITIES, false);
+        setPropertyIfSupported(inputFactory, XMLInputFactory.IS_REPLACING_ENTITY_REFERENCES, resolveEntityReferences);
         setPropertyIfSupported(inputFactory, WstxInputProperties.P_DTD_RESOLVER, (XMLResolver) (publicID, systemID, baseURI, namespace) -> {
             throw new XMLStreamException(Messages.XMLObfuscator.externalDTDsNotSupported(systemID));
         });
@@ -296,7 +301,7 @@ public final class XMLObfuscator extends Obfuscator {
 
     private XMLStreamReader createXmlStreamReader(Reader input) {
         try {
-            return INPUT_FACTORY.createXMLStreamReader(input);
+            return INPUT_FACTORIES.get(resolveEntityReferences).createXMLStreamReader(input);
         } catch (XMLStreamException e) {
             throw new IllegalStateException(e);
         }
@@ -383,6 +388,7 @@ public final class XMLObfuscator extends Obfuscator {
         private final Lookup.ForAttributes.Builder<AttributeConfig> attributes;
         private final StringBuilder attributesRepresentation;
 
+        private boolean resolveEntityReferences;
         private String malformedXMLWarning;
 
         private long limit;
@@ -411,6 +417,7 @@ public final class XMLObfuscator extends Obfuscator {
             attributes = Lookup.forAttributes();
             attributesRepresentation = new StringBuilder().append('{');
 
+            resolveEntityReferences = false;
             malformedXMLWarning = Messages.XMLObfuscator.malformedXML.text();
 
             limit = Long.MAX_VALUE;
@@ -787,6 +794,18 @@ public final class XMLObfuscator extends Obfuscator {
          */
         public Builder forNestedElementsByDefault(ObfuscationMode obfuscationMode) {
             forNestedElementsByDefault = Objects.requireNonNull(obfuscationMode);
+            return this;
+        }
+
+        /**
+         * Sets whether to resolve entity references. The default is {@code false}, to prevent XML External Entity (XXE) attacks.
+         *
+         * @param resolveEntityReferences {@code true} to resolve entity references, or {@code false} otherwise.
+         * @return This object
+         * @since 2.0
+         */
+        public Builder resolveEntityReferences(boolean resolveEntityReferences) {
+            this.resolveEntityReferences = resolveEntityReferences;
             return this;
         }
 

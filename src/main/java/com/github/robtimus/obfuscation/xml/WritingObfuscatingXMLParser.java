@@ -89,7 +89,10 @@ final class WritingObfuscatingXMLParser {
             case XMLStreamConstants.END_DOCUMENT:
                 endDocument();
                 break;
-            // case XMLStreamConstants.ENTITY_REFERENCE not supported; entities are resolved
+            case XMLStreamConstants.ENTITY_REFERENCE:
+                // In case entities are not resolved
+                entityReference();
+                break;
             // case XMLStreamConstants.ATTRIBUTE handled in startElement
             case XMLStreamConstants.DTD:
                 dtd();
@@ -108,7 +111,7 @@ final class WritingObfuscatingXMLParser {
     private int nextEvent() throws XMLStreamException {
         try {
             int event = xmlStreamReader.next();
-            if (event != XMLStreamConstants.CHARACTERS && event != XMLStreamConstants.CDATA) {
+            if (event != XMLStreamConstants.CHARACTERS && event != XMLStreamConstants.CDATA && event != XMLStreamConstants.ENTITY_REFERENCE) {
                 finishLatestText();
             }
             return event;
@@ -236,6 +239,30 @@ final class WritingObfuscatingXMLParser {
     private void endDocument() throws XMLStreamException {
         // write the end document even if the destination's limit has been reached
         xmlStreamWriter.writeEndDocument();
+    }
+
+    private void entityReference() throws XMLStreamException {
+        // Inside CDATA, everything is treated as literal text, so any entity reference can be treated as regular text
+        if (currentTextType != TextType.CHARACTERS) {
+            // including CDATA -> CHARACTERS
+            finishLatestText();
+        }
+
+        String entityReference = xmlStreamReader.getLocalName();
+        if (currentElements.isEmpty()) {
+            // not obfuscating anything
+            xmlStreamWriter.writeEntityRef(entityReference);
+            return;
+        }
+        ObfuscatedElement currentElement = currentElements.getLast();
+        if (skipObfuscatingText(currentElement)) {
+            xmlStreamWriter.writeEntityRef(entityReference);
+            return;
+        }
+        // the text should be obfuscated, but not at this time
+        currentText.append('&').append(entityReference).append(';');
+        currentTextType = TextType.CHARACTERS;
+        obfuscateCurrentText = true;
     }
 
     private void dtd() throws XMLStreamException {

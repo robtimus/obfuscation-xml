@@ -13,6 +13,12 @@
   <!ELEMENT t:cdata (#PCDATA)>
   <!ATTLIST t:cdata t:a CDATA #REQUIRED>
   <!ELEMENT empty EMPTY>
+  <!ELEMENT entityOnly ANY>
+  <!ELEMENT entityOnlyAsText (#PCDATA)>
+  <!ELEMENT entityOnlyAsCdata (#PCDATA)>
+  <!ELEMENT entityMixedWithText ANY>
+  <!ELEMENT entityMixedWithTextAsText (#PCDATA)>
+  <!ELEMENT entityMixedWithTextAsCdata (#PCDATA)>
   <!ELEMENT element ANY>
   <!ATTLIST element xmlns:t CDATA #FIXED "urn:test">
   <!ELEMENT nested ANY>
@@ -34,6 +40,14 @@
     ]]>
   </cdata>
   <empty/>
+  <entityOnly>
+    <entityOnlyAsText>&entity;</entityOnlyAsText>
+    <entityOnlyAsCdata><![CDATA[&entity;]]></entityOnlyAsCdata>
+  </entityOnly>
+  <entityMixedWithText>
+    <entityMixedWithTextAsText>&entity;, text, &entity;, text again and &entity;</entityMixedWithTextAsText>
+    <entityMixedWithTextAsCdata><![CDATA[&entity;, text, &entity;, text again and &entity;]]></entityMixedWithTextAsCdata>
+  </entityMixedWithText>
   <!-- comment -->
   <element>
     <t:text xmlns:t="urn:test" t:a="***" t:b="bar">
@@ -52,7 +66,7 @@
     </nested>
   </element>
   <notMatchedText>
-    text"Entity Value
+    text"&entity;
   </notMatchedText>
   <notMatchedCdata>
     <![CDATA[
@@ -62,7 +76,7 @@
   <notMatchedEmpty/>
   <notMatchedElement>
     <notMatchedText>
-      text"Entity Value
+      text"&entity;
     </notMatchedText>
     <notMatchedCdata>
       <![CDATA[
@@ -99,7 +113,7 @@
       </nested>
     </element>
     <notMatchedText>
-      text"Entity Value
+      text"&entity;
     </notMatchedText>
     <notMatchedCdata>
       <![CDATA[
@@ -109,7 +123,7 @@
     <notMatchedEmpty/>
     <notMatchedElement>
         <notMatchedText>
-        text"Entity Value
+        text"&entity;
       </notMatchedText>
       <notMatchedCdata>
         <![CDATA[
@@ -121,7 +135,7 @@
   </nested>
   <notObfuscated>
     <text xmlns="urn:test" a="***" b="bar">
-      text"Entity Value
+      text"&entity;
     </text>
     <cdata xmlns="urn:test" a="*****">
       <![CDATA[
@@ -132,7 +146,7 @@
     <!-- comment -->
     <element>
       <t:text xmlns:t="urn:test" t:a="***" t:b="bar">
-        text"Entity Value
+        text"&entity;
       </t:text>
       <t:cdata xmlns:t="urn:test" t:a="*****">
         <![CDATA[
@@ -147,7 +161,7 @@
       </nested>
     </element>
     <notMatchedText>
-      text"Entity Value
+      text"&entity;
     </notMatchedText>
     <notMatchedCdata>
       <![CDATA[
@@ -157,7 +171,7 @@
     <notMatchedEmpty/>
     <notMatchedElement>
       <notMatchedText>
-        text"Entity Value
+        text"&entity;
       </notMatchedText>
       <notMatchedCdata>
         <![CDATA[

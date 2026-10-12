@@ -1,0 +1,184 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE root [
+  <!ELEMENT root ANY>
+  <!ELEMENT text (#PCDATA)>
+  <!ATTLIST text xmlns CDATA #FIXED "urn:test">
+  <!ATTLIST text a CDATA #REQUIRED>
+  <!ATTLIST text b CDATA #REQUIRED>
+  <!ELEMENT t:text ANY>
+  <!ATTLIST t:text t:a CDATA #REQUIRED>
+  <!ATTLIST t:text t:b CDATA #REQUIRED>
+  <!ELEMENT cdata (#PCDATA)>
+  <!ATTLIST cdata xmlns CDATA #FIXED "urn:test">
+  <!ATTLIST cdata a CDATA #REQUIRED>
+  <!ELEMENT t:cdata (#PCDATA)>
+  <!ATTLIST t:cdata t:a CDATA #REQUIRED>
+  <!ELEMENT empty EMPTY>
+  <!ELEMENT entityOnly ANY>
+  <!ELEMENT entityOnlyAsText (#PCDATA)>
+  <!ELEMENT entityOnlyAsCdata (#PCDATA)>
+  <!ELEMENT entityMixedWithText ANY>
+  <!ELEMENT entityMixedWithTextAsText (#PCDATA)>
+  <!ELEMENT entityMixedWithTextAsCdata (#PCDATA)>
+  <!ELEMENT element ANY>
+  <!ATTLIST element xmlns:t CDATA #FIXED "urn:test">
+  <!ELEMENT nested ANY>
+  <!ELEMENT elem1 (#PCDATA)>
+  <!ELEMENT elem2 (#PCDATA)>
+  <!ELEMENT notMatchedText (#PCDATA)>
+  <!ELEMENT notMatchedCdata (#PCDATA)>
+  <!ELEMENT notMatchedEmpty EMPTY>
+  <!ELEMENT notMatchedElement ANY>
+  <!ELEMENT notObfuscated ANY>
+  <!ENTITY entity "Entity Value">
+]><?xml-stylesheet type="text/xsl" href="style.xsl"?><?test?><root>
+  <text xmlns="urn:test" a="***" b="bar">
+    ***
+  </text>
+  <cdata xmlns="urn:test" a="*****">
+    <![CDATA[
+      ***
+    ]]>
+  </cdata>
+  <empty/>
+  <entityOnly>
+    <entityOnlyAsText>Entity Value</entityOnlyAsText>
+    <entityOnlyAsCdata><![CDATA[&entity;]]></entityOnlyAsCdata>
+  </entityOnly>
+  <entityMixedWithText>
+    <entityMixedWithTextAsText>Entity Value, text, Entity Value, text again and Entity Value</entityMixedWithTextAsText>
+    <entityMixedWithTextAsCdata><![CDATA[&entity;, text, &entity;, text again and &entity;]]></entityMixedWithTextAsCdata>
+  </entityMixedWithText>
+  <!-- comment -->
+  <element>
+    <t:text xmlns:t="urn:test" t:a="***" t:b="bar">
+      eee
+    </t:text>
+    <t:cdata xmlns:t="urn:test" t:a="*****">
+      <![CDATA[
+        eee
+      ]]>
+    </t:cdata>
+    <empty/>
+    <nested>
+      <elem1>eee</elem1>
+      <!-- comment -->
+      <elem2>eee</elem2>
+    </nested>
+  </element>
+  <notMatchedText>
+    text"Entity Value
+  </notMatchedText>
+  <notMatchedCdata>
+    <![CDATA[
+      Longer data with embedded <xml>
+    ]]>
+  </notMatchedCdata>
+  <notMatchedEmpty/>
+  <notMatchedElement>
+    <notMatchedText>
+      text"Entity Value
+    </notMatchedText>
+    <notMatchedCdata>
+      <![CDATA[
+        Longer data with embedded <xml>
+      ]]>
+    </notMatchedCdata>
+    <notMatchedEmpty/>
+  </notMatchedElement>
+  <nested>
+    <text xmlns="urn:test" a="***" b="bar">
+      ***
+    </text>
+    <cdata xmlns="urn:test" a="*****">
+      <![CDATA[
+        ***
+      ]]>
+    </cdata>
+    <empty/>
+    <!-- comment -->
+    <element>
+      <t:text xmlns:t="urn:test" t:a="***" t:b="bar">
+        eee
+      </t:text>
+      <t:cdata xmlns:t="urn:test" t:a="*****">
+        <![CDATA[
+          eee
+        ]]>
+      </t:cdata>
+      <empty/>
+      <nested>
+        <elem1>eee</elem1>
+        <!-- comment -->
+        <elem2>eee</elem2>
+      </nested>
+    </element>
+    <notMatchedText>
+      text"Entity Value
+    </notMatchedText>
+    <notMatchedCdata>
+      <![CDATA[
+        Longer data with embedded <xml>
+      ]]>
+    </notMatchedCdata>
+    <notMatchedEmpty/>
+    <notMatchedElement>
+        <notMatchedText>
+        text"Entity Value
+      </notMatchedText>
+      <notMatchedCdata>
+        <![CDATA[
+          Longer data with embedded <xml>
+        ]]>
+      </notMatchedCdata>
+      <notMatchedEmpty/>
+    </notMatchedElement>
+  </nested>
+  <notObfuscated>
+    <text xmlns="urn:test" a="***" b="bar">
+      text"Entity Value
+    </text>
+    <cdata xmlns="urn:test" a="*****">
+      <![CDATA[
+        Longer data with embedded <xml>
+      ]]>
+    </cdata>
+    <empty/>
+    <!-- comment -->
+    <element>
+      <t:text xmlns:t="urn:test" t:a="***" t:b="bar">
+        text"Entity Value
+      </t:text>
+      <t:cdata xmlns:t="urn:test" t:a="*****">
+        <![CDATA[
+          Longer data with embedded <xml>
+        ]]>
+      </t:cdata>
+      <empty/>
+      <nested>
+        <elem1>1</elem1>
+        <!-- comment -->
+        <elem2>2</elem2>
+      </nested>
+    </element>
+    <notMatchedText>
+      text"Entity Value
+    </notMatchedText>
+    <notMatchedCdata>
+      <![CDATA[
+        Longer data with embedded <xml>
+      ]]>
+    </notMatchedCdata>
+    <notMatchedEmpty/>
+    <notMatchedElement>
+      <notMatchedText>
+        text"Entity Value
+      </notMatchedText>
+      <notMatchedCdata>
+        <![CDATA[
+          Longer data with embedded <xml>
+        ]]>
+      </notMatchedCdata>
+      <notMatchedEmpty/>
+    </notMatchedElement>
+  </notObfuscated>
+</root>

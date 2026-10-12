@@ -159,7 +159,7 @@ class WritingObfuscatingXMLParserTest {
         }
 
         private XMLStreamReader2 createXmlStreamReader(String xml, String externalDtdSchemas, XMLResolver dtdResolver) throws XMLStreamException {
-            XMLInputFactory inputFactory = XMLObfuscator.createInputFactory();
+            XMLInputFactory inputFactory = XMLObfuscator.createInputFactory(false);
             if (externalDtdSchemas != null) {
                 XMLObfuscator.setPropertyIfSupported(inputFactory, XMLConstants.ACCESS_EXTERNAL_DTD, externalDtdSchemas);
             }

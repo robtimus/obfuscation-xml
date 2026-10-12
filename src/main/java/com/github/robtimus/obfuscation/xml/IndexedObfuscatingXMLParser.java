@@ -88,8 +88,9 @@ final class IndexedObfuscatingXMLParser {
                 endElement(startIndex, endIndex);
                 textIndex = endIndex;
                 break;
-            case XMLStreamConstants.CHARACTERS, XMLStreamConstants.CDATA:
+            case XMLStreamConstants.CHARACTERS, XMLStreamConstants.CDATA, XMLStreamConstants.ENTITY_REFERENCE:
                 // text can come in multiple events; don't finish the latest text, just update the index
+                // inside CDATA, everything is treated as literal text, so any entity reference can be treated as regular text
                 textIndex = text(startIndex, endIndex);
                 break;
             default:

@@ -231,10 +231,60 @@ class XMLObfuscatorTest {
                     throwable.getMessage());
         }
 
+        @Nested
+        @DisplayName("external entity allowed if not resolved")
+        class ExternalEntityAllowedIfNotResolved {
+
+            @Test
+            @DisplayName("default")
+            void testDefault() {
+                String xml = """
+                        <?xml version="1.0" encoding="utf-8"?>
+                        <!DOCTYPE html [
+                          <!ENTITY name SYSTEM "irrelevant">
+                        ]>
+                        <html xmlns="http://www.w3.org/1999/xhtml">
+                        &name;
+                        </html>""";
+                String expected = xml;
+
+                Obfuscator obfuscator = createObfuscator();
+
+                String obfuscated = obfuscator.obfuscateText(xml).toString();
+
+                assertEquals(expected, obfuscated);
+            }
+
+            @Test
+            @DisplayName("with attributes")
+            void testWithAttributes() {
+                String xml = """
+                        <?xml version="1.0" encoding="utf-8"?>
+                        <!DOCTYPE html [
+                          <!ENTITY name SYSTEM "irrelevant">
+                        ]>
+                        <html xmlns="http://www.w3.org/1999/xhtml">
+                        &name;
+                        </html>""";
+                String expected = """
+                        <?xml version="1.0" encoding="utf-8"?><!DOCTYPE html [
+                          <!ENTITY name SYSTEM "irrelevant">
+                        ]><html xmlns="http://www.w3.org/1999/xhtml">
+                        &name;
+                        </html>""";
+
+                Obfuscator obfuscator = createObfuscatorWithAttributes();
+
+                String obfuscated = obfuscator.obfuscateText(xml).toString();
+
+                assertEquals(expected, obfuscated);
+            }
+        }
+
         @ParameterizedTest(name = "{1}")
         @MethodSource("obfuscators")
-        @DisplayName("external entity not allowed")
-        void testExternalEntityNotAllowed(Obfuscator obfuscator, @SuppressWarnings("unused") String displayName) {
+        @DisplayName("external entity not allowed if resolved")
+        void testExternalEntityNotAllowedIfResolved(Obfuscator obfuscator, @SuppressWarnings("unused") String displayName) {
             String xml = """
                     <?xml version="1.0" encoding="utf-8"?>
                     <!DOCTYPE html [
@@ -274,8 +324,8 @@ class XMLObfuscatorTest {
 
         private Arguments[] obfuscators() {
             return new Arguments[] {
-                    arguments(createObfuscator(), "default"),
-                    arguments(createObfuscatorWithAttributes(), "with attributes"),
+                    arguments(createObfuscator(builder().resolveEntityReferences(true)), "default"),
+                    arguments(createObfuscatorWithAttributes(builder().resolveEntityReferences(true)), "with attributes"),
             };
         }
     }
@@ -826,6 +876,17 @@ class XMLObfuscatorTest {
             WithAttributes() {
                 super("XMLObfuscator.input.valid.all-events.xml", "XMLObfuscator.expected.valid.all-events.with-attributes.all",
                         () -> createObfuscatorWithAttributes());
+            }
+
+            @Nested
+            @DisplayName("resolving entities")
+            @TestInstance(Lifecycle.PER_CLASS)
+            class ResolvingEntities extends ObfuscatorTest {
+
+                ResolvingEntities() {
+                    super("XMLObfuscator.input.valid.all-events.xml", "XMLObfuscator.expected.valid.all-events.with-attributes.resolving-entities",
+                            () -> createObfuscatorWithAttributes(builder().resolveEntityReferences(true)));
+                }
             }
 
             @Nested
